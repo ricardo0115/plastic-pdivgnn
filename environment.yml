@@ -1,0 +1,36 @@
+name: plastic-lstm-gnn
+channels:
+  - set3mah        # simcoon (constitutive-law backend used by fedoo)
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - simcoon
+  - pip:
+      # Neural-network stack (models and core utilities are vendored in plgnn).
+      - torch
+      - torch-geometric
+      # Finite-element solve.
+      - fedoo
+      - pypardiso
+      # Meshing / rendering / PDF export.
+      - pyvista
+      - meshio
+      - gmsh
+      - matplotlib
+      - pillow
+      # Movie export (self-contained ffmpeg binary, no system ffmpeg needed).
+      - imageio
+      - imageio-ffmpeg
+      - pikepdf
+      - reportlab
+      # CLI + numerics.
+      - fire
+      - numpy
+      - scipy
+      - scikit-learn
+      # Interactive real-time field viewers (scripts/viewers/).
+      - PyQt5
+      - pyvistaqt
+      # This repository (scripts).
+      - -e .

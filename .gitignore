@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Environments
+.venv/
+venv/
+env/
+.vscode/
+.idea/
+
+# Large data / artifacts (never committed; dataset is external)
+data/
+dataset/
+dataset_*/
+data_full/
+outputs/
+results/
+runs/
+logs/
+*.npz
+*.npy
+*.vtk
+*.mp4
+# ... except the committed reference mesh (viewer + figure geometry).
+!mesh/mesh.vtk
+
+# Model weights are ignored by default ...
+*.pt
+*.pth
+# ... except the committed reference weights that reproduce the figures.
+!weights/*.pt
+!weights/*.pth

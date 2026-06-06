@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plastic-lstm-gnn"
+version = "0.1.0"
+description = "Implementation for the paper: Non-linear mechanical field reconstruction coupling recurrent neural networks with physics-informed graph neural networks"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.12"
+authors = [
+  { name = "Manuel Ricardo Guevara Garban" },
+]
+keywords = [
+  "graph-neural-network",
+  "lstm",
+  "plasticity",
+  "finite-element-method",
+  "physics-informed",
+  "pytorch",
+  "torch-geometric",
+]
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = [
+  # Neural-network stack (models and core utilities are vendored in plgnn).
+  "torch>=2.11",
+  "torch-geometric>=2.7",
+  # Finite-element solve (dataset generation + on-the-fly FE reference for figures).
+  "fedoo>=0.8",
+  "pypardiso>=0.4",
+  # Meshing, rendering, PDF export.
+  "pyvista>=0.47",
+  "meshio>=5.3",
+  "gmsh>=4.15",
+  "matplotlib>=3.10",
+  "pillow>=11.0",
+  "pikepdf>=10.5",
+  "reportlab>=4.5",
+  # Movie export (self-contained ffmpeg binary, no system ffmpeg needed).
+  "imageio>=2.37",
+  "imageio-ffmpeg>=0.6",
+  # CLI + numerics.
+  "fire>=0.7",
+  "tqdm>=4.67",
+  "numpy>=2.0",
+  "scipy>=1.13",
+  "scikit-learn>=1.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+# Interactive real-time field viewer (scripts/viewers/).
+gui = ["PyQt5>=5.15", "pyvistaqt>=0.11"]
+
+[project.urls]
+Homepage = "https://github.com/ricardo0115/plastic-pdivgnn"
+"Interactive abstract" = "https://ricardo0115.github.io/plastic-pdivgnn/"
+
+# Self-contained package: vendored neural-network core + FE datagen/solve + figure glue.
+[tool.setuptools.packages.find]
+include = ["plgnn*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
