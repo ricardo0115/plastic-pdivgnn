@@ -137,7 +137,7 @@ plgnn/                      self-contained package
 ├── graph/ lstm/ hybrid/    neural-network models (GNN, LSTM, coupled LstmGNN)
 ├── base.py scaling.py losses.py physics.py physics_fem.py    core utilities
 ├── datagen.py fem_sim.py   finite-element meshes and solve (fedoo + simcoon)
-└── models.py figutils.py movie.py train_utils.py    paper-specific glue
+└── models.py figutils.py movie.py train_utils.py    paper-specific
 weights/                    committed reference weights (lstm, gnn, pdivgnn)
 mesh/mesh.vtk               committed reference quad mesh (training-default geometry)
 scripts/
@@ -275,8 +275,7 @@ python scripts/train_gnn.py --data-dir <DATA_DIR> --hidden-dir <DATA_DIR>/hidden
 ## Dataset
 
 The full finite-element dataset (10,000 non-proportional loading paths, ~71 GB) is
-not stored in git. Regenerate it with `scripts/generate_dataset.py`, or download the
-archive (Zenodo DOI: _to be added_).
+not stored in git. Regenerate it with `scripts/generate_dataset.py`.
 
 ## Citation
 
