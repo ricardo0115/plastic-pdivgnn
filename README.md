@@ -247,6 +247,11 @@ By default it also writes `<name>_error.mp4` (per-node squared error) and
 `<name>_divergence.mp4` (FE / GNN / P-DivGNN `|div(σ)|`); disable with
 `--include_error=False` / `--include_divergence=False`.
 
+<p align="center">
+  <img src="assets/comparison_movie_frame.png" width="55%"
+       alt="A frame of the comparison movie: FEM and P-DivGNN field rows and the macro stress-strain curves">
+</p>
+
 ## Interactive viewer
 
 A PyQt5 application runs the coupled inference live: edit the macroscopic strain
