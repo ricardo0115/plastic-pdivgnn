@@ -49,20 +49,6 @@ browser: **<https://ricardo0115.github.io/plastic-pdivgnn/>**
 path, with the macroscopic stress-strain curves (bottom). Produced by
 `scripts/figures/fig_movie_fem_gnn.py`.*
 
-## Contents
-
-- [Highlights](#highlights)
-- [Results](#results)
-- [Installation](#installation)
-- [Quick start](#quick-start)
-- [Repository structure](#repository-structure)
-- [Reproducing the figures](#reproducing-the-figures)
-- [Interactive viewer](#interactive-viewer)
-- [Retraining](#retraining)
-- [Dataset](#dataset)
-- [Citation](#citation)
-- [License](#license)
-
 ## Highlights
 
 - **Coupled LSTM → GNN.** The LSTM learns the path-dependent macroscopic
