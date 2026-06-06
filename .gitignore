@@ -39,3 +39,6 @@ logs/
 # ... except the committed reference weights that reproduce the figures.
 !weights/*.pt
 !weights/*.pth
+
+# ... except the interactive-abstract videos served by GitHub Pages.
+!docs/assets/video/*.mp4

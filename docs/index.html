@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Non-linear mechanical field reconstruction coupling recurrent neural networks with physics-informed graph neural networks</title>
+<meta name="description" content="Interactive abstract: a coupled LSTM-GNN surrogate that reconstructs local elasto-plastic stress fields in real time, up to 3,500x faster than finite elements.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script>
+  window.MathJax = { tex:{inlineMath:[['$','$']], displayMath:[['$$','$$']]}, svg:{fontCache:'global'} };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+</head>
+<body>
+
+<!-- ================= NAV ================= -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="#top">LSTM&#8209;GNN</a>
+    <div class="nav-links">
+      <a href="#abstract">Abstract</a>
+      <a href="#method">Method</a>
+      <a href="#results">Results</a>
+      <a href="#hidden">Hidden states</a>
+      <a href="#performance">Performance</a>
+      <a href="#cite">Cite</a>
+      <a class="nav-code" href="https://github.com/ricardo0115/plastic-pdivgnn" target="_blank" rel="noopener">Code</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ================= HERO ================= -->
+<header id="top" class="hero">
+  <div class="logos">
+    <a href="https://www.u-bordeaux.fr/" target="_blank" rel="noopener" title="Université de Bordeaux"><img src="assets/logos/ub.png" alt="Université de Bordeaux"></a>
+    <a href="https://www.i2m.u-bordeaux.fr/" target="_blank" rel="noopener" title="I2M — Institut de Mécanique et d'Ingénierie"><img src="assets/logos/i2m.png" alt="I2M — Institut de Mécanique et d'Ingénierie"></a>
+    <a href="https://www.labri.fr/" target="_blank" rel="noopener" title="LaBRI"><img src="assets/logos/labri.png" alt="LaBRI"></a>
+    <a href="https://artsetmetiers.fr/" target="_blank" rel="noopener" title="Arts et Métiers"><img src="assets/logos/ensam.png" alt="Arts et Métiers"></a>
+    <a href="https://www.univ-grenoble-alpes.fr/" target="_blank" rel="noopener" title="Université Grenoble Alpes"><img src="assets/logos/uga.png" alt="Université Grenoble Alpes"></a>
+    <a href="https://www.timc.fr/" target="_blank" rel="noopener" title="TIMC — Univ. Grenoble Alpes, CNRS"><img src="assets/logos/timc.png" alt="TIMC"></a>
+    <!-- [ADD] CNRS logo here -->
+    <a href="https://tu-freiberg.de/" target="_blank" rel="noopener" title="TU Bergakademie Freiberg"><img src="assets/logos/tubaf.png" alt="TU Bergakademie Freiberg"></a>
+    <a href="https://tu-freiberg.de/imfd/tm-fk/team/prof-bjoern-kiefer-phd" target="_blank" rel="noopener" title="Institute of Mechanics and Fluid Dynamics (IMFD)"><img src="assets/logos/imfd.png" alt="IMFD"></a>
+  </div>
+
+  <h1 class="title">Non-linear mechanical field reconstruction coupling recurrent neural networks with physics-informed graph neural networks</h1>
+
+  <p class="authors">
+    <span class="author">Manuel Ricardo Guevara Garban<sup>1,3,5</sup><a class="corr" href="mailto:manuel.guevara-garban@u-bordeaux.fr" title="Corresponding author">&#9993;</a></span>
+    <span class="author">Yves Chemisky<sup>2</sup></span>
+    <span class="author">Micha&euml;l Cl&eacute;ment<sup>3</sup></span>
+    <span class="author">&Eacute;tienne Pruli&egrave;re<sup>4</sup></span>
+    <span class="author">Martin Abendroth<sup>5</sup></span>
+    <span class="author">Bjoern Kiefer<sup>5</sup></span>
+  </p>
+
+  <p class="affils">
+    <span><sup>1</sup> Univ. Bordeaux, CNRS, Bordeaux INP, I2M, UMR 5295, Talence, France</span>
+    <span><sup>2</sup> Univ. Grenoble Alpes, CNRS, UMR 5525, La Tronche, France</span>
+    <span><sup>3</sup> Univ. Bordeaux, CNRS, Bordeaux INP, LaBRI, UMR 5800, Talence, France</span>
+    <span><sup>4</sup> Arts et M&eacute;tiers Institute of Technology, CNRS, Bordeaux INP, I2M, UMR 5295, Talence, France</span>
+    <span><sup>5</sup> Institute of Mechanics and Fluid Dynamics, TU Bergakademie Freiberg, Germany</span>
+  </p>
+
+  <p class="venue">Submitted to <em>Computer Methods in Applied Mechanics and Engineering</em></p>
+
+  <div class="cta">
+    <a class="btn btn-disabled" title="Preprint link coming soon" aria-disabled="true">&#128196; Paper <span class="soon">soon</span></a>
+    <a class="btn btn-primary" href="https://github.com/ricardo0115/plastic-pdivgnn" target="_blank" rel="noopener">&#60;/&#62; Code</a>
+    <a class="btn" href="#cite">&#34;&#34; BibTeX</a>
+  </div>
+
+  <figure class="hero-media">
+    <video src="assets/video/fem_gnn_movie.mp4" autoplay muted loop playsinline></video>
+    <figcaption>Local stress field along a non-proportional loading path: finite-element reference (top row) and the LSTM-GNN surrogate (middle row) for each component &sigma;<sub>xx</sub>, &sigma;<sub>yy</sub>, &sigma;<sub>xy</sub>; the bottom row shows the macroscopic stress-strain response.</figcaption>
+  </figure>
+</header>
+
+<main>
+
+<!-- ================= ABSTRACT ================= -->
+<section id="abstract" class="section">
+  <h2>Abstract</h2>
+  <p class="lead">
+    Reconstructing local stress fields in heterogeneous microstructures under non-linear, history-dependent loading remains a major computational bottleneck in multi-scale simulations. We propose a coupled <strong>LSTM-GNN</strong> framework that links the temporal and spatial aspects of local stress field reconstruction. A Long Short-Term Memory network encodes macroscopic stress-strain sequences into a compact hidden state that captures the path-dependent constitutive response, while a physics-informed Graph Neural Network reconstructs the spatially-resolved stress field at each time step. We introduce a relative weighting strategy with linear warm-up to balance the data-driven reconstruction loss and a discrete divergence-based equilibrium penalty. This resolves the scale mismatch that prevents fixed-weight formulations from converging in the elasto-plastic regime.
+  </p>
+  <p>
+    The model is trained on 10,000 non-proportional loading paths applied to a periodic plate-with-a-hole microstructure and von Mises elasto-plasticity. The model achieves three orders of magnitude speedup over finite element simulations and generalizes to loading sequences twice the training length, with 1.9% cumulative error. Because the graph relies on mesh connectivity instead of the specific element type, one trained surrogate can be applied directly without retraining to meshes with different element types and to both coarser and finer resolutions, while in all cases reproducing the high-fidelity quad-element FE field used during training. Indeed, the message passing characteristics inherent to GNN and MeshGraphNet architecture render the model mesh-agnostic. Analysis of the LSTM hidden states suggests a low-dimensional structure related to the internal state variables of the constitutive model.
+  </p>
+
+  <ul class="keywords">
+    <li>Graph neural networks</li>
+    <li>Multi-scale simulation</li>
+    <li>Recurrent neural networks</li>
+    <li>Machine learning</li>
+    <li>Architectured materials</li>
+    <li>Local stress field reconstruction</li>
+    <li>Physics-informed neural networks</li>
+  </ul>
+</section>
+
+<!-- ================= METHOD ================= -->
+<section id="method" class="section section-alt">
+  <h2>Method</h2>
+  <p class="lead">
+    The surrogate splits the problem in two. An <strong>LSTM</strong> reads the macroscopic stress-strain history and compresses it into a hidden state that encodes the path-dependent response. A <strong>graph neural network</strong> then takes that hidden state as a node feature and performs message passing over the mesh to localize the full stress field, one step at a time. A divergence-based penalty pushes the predicted field toward mechanical equilibrium.
+  </p>
+
+  <figure class="fig">
+    <img src="assets/img/schema_coupled.png" alt="Coupled LSTM-GNN architecture" loading="lazy">
+    <figcaption><strong>Coupled architecture.</strong> The LSTM processes the mean strain history to produce hidden states and mean-stress predictions; these become enriched node features for the GNN, which reconstructs the local stress field on the periodic mesh graph at each time step.</figcaption>
+  </figure>
+
+  <div class="equations">
+    <p>The two networks are chained explicitly. At each step $t$, the LSTM maps the macroscopic strain and its previous hidden and cell states to the mean stress and the updated states:</p>
+    <div class="eq">$$\mathrm{LSTM}\!\left(\bar{\boldsymbol{\varepsilon}}_t,\, \boldsymbol{h}^{2}_{t-1},\, \boldsymbol{c}^{2}_{t-1}\right) \;\longmapsto\; \left(\bar{\boldsymbol{\sigma}}_t,\, \boldsymbol{h}^{2}_t,\, \boldsymbol{c}^{2}_t\right)$$</div>
+    <p>The mean stress $\bar{\boldsymbol{\sigma}}_t$ and hidden state $\boldsymbol{h}_t$ are broadcast to every node and concatenated with its coordinates $\mathbf{x}_i$ and boundary label $\alpha_i$ to form the node features:</p>
+    <div class="eq">$$\boldsymbol{v}_{i,t} = \left(\bar{\boldsymbol{\sigma}}_t,\, \boldsymbol{h}_t,\, \mathbf{x}_i,\, \alpha_i\right)$$</div>
+    <p>The GNN then reconstructs the three local stress components at each node of the mesh $\mathcal{M}$:</p>
+    <div class="eq">$$\mathrm{GNN}\!\left(\bar{\boldsymbol{\sigma}}_t,\, \boldsymbol{h}_t,\, \boldsymbol{v}_{i,t},\, \mathcal{M}\right) \;\longmapsto\; \left(\sigma_{xx_{i,t}},\, \sigma_{yy_{i,t}},\, \sigma_{xy_{i,t}}\right)$$</div>
+    <p>Composing the two yields a single end-to-end map from the loading history to the local stress field:</p>
+    <div class="eq">$$\mathrm{GNN}\!\left(\mathrm{LSTM}(\bar{\boldsymbol{\varepsilon}}_t,\, \boldsymbol{h}_{t-1}),\, \boldsymbol{v}_{i,t},\, \mathcal{M}\right) \;\longmapsto\; \left(\sigma_{xx_{i,t}},\, \sigma_{yy_{i,t}},\, \sigma_{xy_{i,t}}\right)$$</div>
+  </div>
+
+  <figure class="fig">
+    <img src="assets/img/schema_gnn.png" alt="GNN architecture" loading="lazy">
+    <figcaption><strong>Spatial decoder.</strong> An encode&ndash;process&ndash;decode GNN maps the mesh to a latent graph, runs message passing, and decodes the local stress field.</figcaption>
+  </figure>
+
+  <h3>Physics-informed loss</h3>
+  <div class="equations">
+    <p>The reconstruction is trained with a normalized mean squared error that weights each of the $d$ stress components equally:</p>
+    <div class="eq">$$\mathrm{NMSE}(\boldsymbol{\sigma}, \hat{\boldsymbol{\sigma}}) = \frac{1}{d}\sum_{c=1}^{d} \frac{\sum_{i=1}^{n}\left(\sigma_{c,i}-\hat{\sigma}_{c,i}\right)^2}{\sum_{i=1}^{n}\left(\sigma_{c,i}-\frac{1}{n}\sum_{j=1}^{n}\sigma_{c,j}\right)^2}$$</div>
+    <p>A discrete divergence penalty drives the predicted field toward mechanical equilibrium, $\mathbf{div}(\boldsymbol{\sigma})=\mathbf{0}$, evaluated at the interior nodes:</p>
+    <div class="eq">$$\mathcal{L}_{\mathrm{div}} = \bigl(\mathbf{div}(\hat{\boldsymbol{\sigma}})\bigr)^2 = \frac{1}{n}\sum_{i=1}^{n}\left\|\,\mathbf{div}(\hat{\boldsymbol{\sigma}})\big|_{\mathbf{x}=\mathbf{x}_i}\right\|^2$$</div>
+    <p>The two terms differ by orders of magnitude, so a fixed weight fails. A relative weighting with linear warm-up keeps the physics penalty at a controlled fraction of the gradient, regardless of absolute scales:</p>
+    <div class="eq">$$\mathcal{L}_{\mathrm{total}} = \mathrm{NMSE} + \lambda_{\mathrm{eff}}\,\mathcal{L}_{\mathrm{div}}, \qquad \lambda_{\mathrm{eff}} = \lambda_{\mathrm{rel}}\, w(e)\, \frac{\overline{\mathrm{NMSE}}}{\overline{\mathcal{L}}_{\mathrm{div}} + \varepsilon}$$</div>
+    <p>with the warm-up $w(e) = \min(1,\, e/K)$ over $K$ epochs. We use $\lambda_{\mathrm{rel}} = 0.1$ and $K = 20$, so the penalty reaches about 10% of the total loss after warm-up.</p>
+  </div>
+
+  <figure class="fig">
+    <div class="chart-wrap"><canvas id="lossChart"></canvas></div>
+    <figcaption><strong>Training convergence.</strong> Validation NMSE over 100 epochs. Adding the divergence penalty does not degrade reconstruction &mdash; P-DivGNN matches or improves on the baseline GNN.</figcaption>
+  </figure>
+</section>
+
+<!-- ================= RESULTS ================= -->
+<section id="results" class="section">
+  <h2>Results</h2>
+
+  <h3>Macroscopic stress-strain response</h3>
+  <p>Given an input strain path, the LSTM predicts the macroscopic stress response. On this eight-segment path &mdash; twice as long as those seen during training &mdash; it tracks the finite-element reference with 1.9% cumulative error.</p>
+  <figure class="fig">
+    <img src="assets/img/lstm_strain_path.png" alt="Input macroscopic strain path" loading="lazy">
+    <figcaption><strong>Input.</strong> A non-proportional, eight-segment macroscopic strain path.</figcaption>
+  </figure>
+  <figure class="fig">
+    <img src="assets/img/lstm_stress_strain.png" alt="LSTM macroscopic stress-strain response" loading="lazy">
+    <figcaption><strong>Response.</strong> Macroscopic stress-strain curves per component: the LSTM (dashed) reproduces the finite-element reference (solid) across every hysteresis loop.</figcaption>
+  </figure>
+
+  <!-- comparison divider with model toggle -->
+  <h3>FE vs. surrogate &mdash; drag to compare</h3>
+  <p>Final-step stress field (&sigma;<sub>xx</sub>, &sigma;<sub>yy</sub>, &sigma;<sub>xy</sub>), shared color scale. Drag the handle: finite-element reference on the left, the surrogate on the right. Toggle which surrogate to compare against.</p>
+
+  <div class="tabs" data-group="cmp">
+    <button class="tab is-active" data-cmp="assets/img/compare_pdiv.png" data-label="P-DivGNN">vs P-DivGNN</button>
+    <button class="tab" data-cmp="assets/img/compare_gnn.png" data-label="GNN">vs GNN</button>
+  </div>
+
+  <div class="compare" id="compare">
+    <img class="compare-img compare-bottom" id="compareBottom" src="assets/img/compare_pdiv.png" alt="Surrogate stress field">
+    <img class="compare-img compare-top" id="compareTop" src="assets/img/compare_fe.png" alt="FE stress field">
+    <div class="compare-divider" id="compareDivider"><span class="compare-handle">&#8596;</span></div>
+    <span class="compare-tag compare-tag-left">FE (reference)</span>
+    <span class="compare-tag compare-tag-right" id="compareTagRight">P-DivGNN</span>
+    <input type="range" id="compareRange" class="compare-range" min="0" max="100" value="50" aria-label="Comparison reveal">
+  </div>
+
+  <h3>Divergence field</h3>
+  <p>The clip plays the full loading path, showing the stress divergence for the finite-element reference, the baseline GNN, and the physics-informed P-DivGNN. The divergence penalty visibly drives the surrogate toward equilibrium.</p>
+  <figure class="fig">
+    <video src="assets/video/fem_gnn_movie_divergence.mp4" autoplay muted loop playsinline></video>
+    <figcaption><strong>Stress divergence</strong> along the loading path: FE, GNN, and P-DivGNN (lower is closer to equilibrium).</figcaption>
+  </figure>
+
+  <!-- 4c: mesh-agnostic -->
+  <h3>One model, any mesh</h3>
+  <p>The same trained surrogate &mdash; never retrained &mdash; is evaluated on coarse, medium and fine triangular meshes. Switch between the finite-element reference and the surrogates.</p>
+
+  <div class="tabs" data-group="refine">
+    <button class="tab is-active" data-img="assets/img/refinement_grid_mesh_tri.png">Meshes</button>
+    <button class="tab" data-img="assets/img/refinement_grid_fem_tri.png">FE</button>
+    <button class="tab" data-img="assets/img/refinement_grid_gnn_tri.png">GNN</button>
+    <button class="tab" data-img="assets/img/refinement_grid_pdivgnn_tri.png">P-DivGNN</button>
+  </div>
+  <figure class="fig">
+    <img id="refineImg" src="assets/img/refinement_grid_mesh_tri.png" alt="Mesh refinement levels" loading="lazy">
+    <figcaption>Coarse &middot; medium &middot; fine. The graph depends on mesh connectivity, not element type, so a single surrogate transfers across resolutions while reproducing the high-fidelity FE field.</figcaption>
+  </figure>
+
+</section>
+
+<!-- ================= HIDDEN-STATE ANALYSIS ================= -->
+<section id="hidden" class="section section-alt">
+  <h2>LSTM hidden-state analysis</h2>
+  <p>The LSTM compresses the loading history into a 64-dimensional hidden state. Reduced to 2D with PCA and t-SNE, the per-step states trace a low-dimensional path that mirrors the loading. Drag the slider (or press play) to follow the eight-segment loading path used in the paper (twice the training length): the red line marks the current step on the strain path, and the highlighted point shows where that step sits in each embedding. Points are colored from the start (dark) to the end (yellow) of the path.</p>
+
+  <div class="tabs tabs-sm" data-group="hs-curve">
+    <button class="tab is-active" data-hsmode="strain">Strain path</button>
+    <button class="tab" data-hsmode="ss0">&sigma;<sub>xx</sub>&ndash;&epsilon;<sub>xx</sub></button>
+    <button class="tab" data-hsmode="ss1">&sigma;<sub>yy</sub>&ndash;&epsilon;<sub>yy</sub></button>
+    <button class="tab" data-hsmode="ss2">&sigma;<sub>xy</sub>&ndash;&epsilon;<sub>xy</sub></button>
+  </div>
+
+  <div class="hidden-grid">
+    <figure class="hmini"><div class="chart-sm"><canvas id="hsCurve"></canvas></div><figcaption id="hsCurveCap">Eight-segment strain path (&epsilon;<sub>xx</sub>, &epsilon;<sub>yy</sub>, &epsilon;<sub>xy</sub>) &mdash; red line = current step</figcaption></figure>
+    <figure class="hmini"><div class="chart-sm"><canvas id="hsPca"></canvas></div><figcaption>PCA of the hidden states</figcaption></figure>
+    <figure class="hmini"><div class="chart-sm"><canvas id="hsTsne"></canvas></div><figcaption>t-SNE of the hidden states</figcaption></figure>
+  </div>
+
+  <div class="hs-control">
+    <button id="hsPlay" class="play-btn" aria-label="Play / pause">&#9654;</button>
+    <input id="hsSlider" class="scrub" type="range" min="0" max="100" value="0" aria-label="Loading-path step">
+    <span id="hsLabel" class="hs-label">step 0</span>
+  </div>
+</section>
+
+<!-- ================= PERFORMANCE ================= -->
+<section id="performance" class="section section-alt">
+  <h2>Performance</h2>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-num">3,500&times;</div>
+      <div class="card-lbl">faster than finite elements at &gt;50k nodes</div>
+    </div>
+    <div class="card">
+      <div class="card-num">&lt; 0.2 s</div>
+      <div class="card-lbl">per RVE &mdash; real-time field reconstruction</div>
+    </div>
+    <div class="card">
+      <div class="card-num">1.9%</div>
+      <div class="card-lbl">cumulative error at twice the training sequence length</div>
+    </div>
+  </div>
+
+  <div class="chart-head">
+    <h3>Inference time vs. mesh size</h3>
+    <div class="tabs tabs-sm" data-group="scale">
+      <button class="tab is-active" data-scale="logarithmic">Log</button>
+      <button class="tab" data-scale="linear">Linear</button>
+    </div>
+  </div>
+  <div class="chart-wrap"><canvas id="benchChart"></canvas></div>
+  <p class="note">GPU neural-network inference (NVIDIA RTX A4000, 16&nbsp;GB) vs. CPU finite-element solving (Intel Xeon W5-2455X). The GNN scales linearly with the number of nodes; the LSTM cost is essentially constant.</p>
+
+  <p class="subnote">The physics-informed weighting lowers the overall NMSE from 1.68&times;10<sup>&minus;2</sup> (GNN) to 1.56&times;10<sup>&minus;2</sup> (P-DivGNN, &minus;7%) and cuts the mean stress divergence from 893 to 440 (&minus;51%), at an overall macroscopic wMAPE of 1.22%.</p>
+</section>
+
+<!-- ================= HIGHLIGHTS ================= -->
+<section id="highlights" class="section">
+  <h2>Highlights</h2>
+  <ul class="highlights">
+    <li>Trained on one mesh, the surrogate predicts high-fidelity fields on coarse meshes.</li>
+    <li>Divergence-based physics penalty enforces equilibrium with automatic loss balancing.</li>
+    <li>LSTM-GNN coupling predicts a single RVE in real time, up to 3,500&times; faster than FE.</li>
+    <li>Accurate on loading paths twice as long as those seen during training.</li>
+  </ul>
+</section>
+
+<!-- ================= CITE ================= -->
+<section id="cite" class="section section-alt">
+  <h2>Citation</h2>
+  <p class="cite-line">M. R. Guevara Garban, Y. Chemisky, M. Cl&eacute;ment, &Eacute;. Pruli&egrave;re, M. Abendroth, B. Kiefer. <em>Non-linear mechanical field reconstruction coupling recurrent neural networks with physics-informed graph neural networks.</em> Submitted to Computer Methods in Applied Mechanics and Engineering, 2026.</p>
+  <div class="bibtex-wrap">
+    <button id="copyBib" class="copy-btn">Copy</button>
+    <pre id="bibtex">@article{GuevaraGarban2026LSTMGNN,
+  author  = {Guevara Garban, Manuel Ricardo and Chemisky, Yves and
+             Cl{\'e}ment, Micha{\"e}l and Pruli{\`e}re, {\'E}tienne and
+             Abendroth, Martin and Kiefer, Bjoern},
+  title   = {Non-linear mechanical field reconstruction coupling recurrent
+             neural networks with physics-informed graph neural networks},
+  journal = {Computer Methods in Applied Mechanics and Engineering},
+  year    = {2026},
+  note    = {Submitted}
+}</pre>
+  </div>
+</section>
+
+</main>
+
+<!-- ================= FOOTER ================= -->
+<footer class="footer">
+  <div class="logos logos-sm">
+    <a href="https://www.u-bordeaux.fr/" target="_blank" rel="noopener" title="Université de Bordeaux"><img src="assets/logos/ub.png" alt="Université de Bordeaux"></a>
+    <a href="https://www.i2m.u-bordeaux.fr/" target="_blank" rel="noopener" title="I2M"><img src="assets/logos/i2m.png" alt="I2M"></a>
+    <a href="https://www.labri.fr/" target="_blank" rel="noopener" title="LaBRI"><img src="assets/logos/labri.png" alt="LaBRI"></a>
+    <a href="https://artsetmetiers.fr/" target="_blank" rel="noopener" title="Arts et Métiers"><img src="assets/logos/ensam.png" alt="Arts et Métiers"></a>
+    <a href="https://www.univ-grenoble-alpes.fr/" target="_blank" rel="noopener" title="Université Grenoble Alpes"><img src="assets/logos/uga.png" alt="Université Grenoble Alpes"></a>
+    <a href="https://www.timc.fr/" target="_blank" rel="noopener" title="TIMC"><img src="assets/logos/timc.png" alt="TIMC"></a>
+    <a href="https://tu-freiberg.de/" target="_blank" rel="noopener" title="TU Bergakademie Freiberg"><img src="assets/logos/tubaf.png" alt="TU Bergakademie Freiberg"></a>
+    <a href="https://tu-freiberg.de/imfd/tm-fk/team/prof-bjoern-kiefer-phd" target="_blank" rel="noopener" title="IMFD"><img src="assets/logos/imfd.png" alt="IMFD"></a>
+  </div>
+  <p>&copy; 2026 The authors. Page content under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC&nbsp;BY&nbsp;4.0</a>. &middot; <a href="https://github.com/ricardo0115/plastic-pdivgnn" target="_blank" rel="noopener">Source code</a></p>
+</footer>
+
+<script src="js/chart.umd.min.js"></script>
+<script src="js/hidden_states.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
