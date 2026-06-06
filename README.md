@@ -262,6 +262,11 @@ python scripts/viewers/realtime_viewer_2d.py \
 
 Requires the `gui` extra (PyQt5 + pyvistaqt).
 
+<p align="center">
+  <img src="assets/viewer_screenshot.png" width="92%"
+       alt="Real-time 2D viewer: controls, live local stress field and macroscopic stress-strain curves">
+</p>
+
 ## Retraining
 
 Optional and slow (GPU recommended). The committed weights already reproduce every
