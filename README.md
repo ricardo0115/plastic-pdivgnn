@@ -93,10 +93,15 @@ meshes at three refinement levels (the network never saw a triangle in training)
        alt="Coarse / medium / fine tri6 mesh refinement ladder">
 </p>
 
-<p align="center">
-  <img src="assets/mesh_refinement.png" width="92%"
-       alt="P-DivGNN local stress field on coarse / medium / fine tri6 meshes">
-</p>
+Finite-element reference (left) and P-DivGNN prediction (right) of the local stress
+field on the same coarse / medium / fine tri6 meshes:
+
+<table>
+<tr>
+<td width="50%"><img src="assets/mesh_refinement_fem.png" alt="FE(Tri6) reference stress field"></td>
+<td width="50%"><img src="assets/mesh_refinement.png" alt="P-DivGNN(Tri6) predicted stress field"></td>
+</tr>
+</table>
 
 ## Installation
 
