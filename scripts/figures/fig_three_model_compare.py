@@ -94,10 +94,11 @@ def _run_fem(
     mesh: pv.PolyData,
     strain_states: np.ndarray,
     n_increments_per_step: int,
-) -> np.ndarray:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return (local stress [T, N, 3], macro stress [T, 3], macro strain [T, 3])."""
     mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
     material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, _ = compute_mechanical_fields_non_linear(
+    local_fields, mean_fields = compute_mechanical_fields_non_linear(
         strain_path=strain_states,
         mesh=mesh_fd,
         constitutive_law=material,
@@ -106,7 +107,12 @@ def _run_fem(
         verbose=False,
         nr_criterion_tol=1e-4,
     )
-    return local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
+    local_stress: np.ndarray = local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
+    macro_stress: np.ndarray = np.asarray(mean_fields[Field.STRESS]).reshape(-1, 3).astype(np.float32)
+    macro_strain: np.ndarray = np.asarray(
+        mean_fields[Field.TOTAL_STRAIN]
+    ).reshape(-1, 3).astype(np.float32)
+    return local_stress, macro_stress, macro_strain
 
 
 def _component_clims(values: np.ndarray) -> list[tuple[float, float]]:
@@ -256,6 +262,36 @@ def _plot_point_evolution(
     plt.close(fig)
 
 
+def _plot_macro_stress_strain(
+    fem_strain: np.ndarray,
+    fem_stress: np.ndarray,
+    lstm_strain: np.ndarray,
+    lstm_stress: np.ndarray,
+    outpath: Path,
+) -> None:
+    """Macroscopic stress-strain response, FEM (solid) vs LSTM (dashed)."""
+    comps: tuple[str, str, str] = ("xx", "yy", "xy")
+    fig, axes = plt.subplots(1, 3, figsize=(13, 3.6), constrained_layout=True)
+    for c, ax in enumerate(axes):
+        ax.plot(
+            fem_strain[:, c], fem_stress[:, c], "-",
+            color=COLORS["FEM"], linewidth=1.8, label="FEM",
+        )
+        ax.plot(
+            lstm_strain[:, c], lstm_stress[:, c], "--",
+            color="#d62728", linewidth=1.5, label="LSTM",
+        )
+        ax.set_xlabel(rf"Macro strain $\bar{{\varepsilon}}_{{{comps[c]}}}$")
+        ax.set_ylabel(rf"Macro stress $\bar{{\sigma}}_{{{comps[c]}}}$ [MPa]")
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(direction="in", which="both")
+    axes[2].legend(
+        frameon=True, fancybox=True, framealpha=0.85, loc="best", fontsize=11,
+    )
+    fig.savefig(outpath, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 @torch.no_grad()
 def main(
     lstm_checkpoint: str,
@@ -315,7 +351,9 @@ def main(
         np.asarray(hidden_states, dtype=np.float32),
     ).to(device)
 
-    fem_stress: np.ndarray = _run_fem(mesh, strain_states, increments_per_step)
+    fem_stress, fem_macro_stress, fem_macro_strain = _run_fem(
+        mesh, strain_states, increments_per_step,
+    )
 
     gnn: PlasticGNN = PlasticGNN(gnn_checkpoint, device, mesh)
     gnn.eval()
@@ -350,6 +388,13 @@ def main(
     _plot_point_evolution(
         fem_series, gnn_series, pdivgnn_series,
         outdir / "point_evolution_3model_quad.pdf",
+    )
+
+    _plot_macro_stress_strain(
+        fem_macro_strain, fem_macro_stress,
+        np.asarray(strain_interp, dtype=np.float32),
+        np.asarray(lstm_stress, dtype=np.float32),
+        outdir / "stress_strain_fem_vs_lstm_quad.pdf",
     )
 
 

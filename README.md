@@ -85,6 +85,14 @@ P-DivGNN on the quad mesh:
        alt="FE / GNN / P-DivGNN local stress field comparison">
 </p>
 
+Macroscopic response — the LSTM constitutive model vs. the finite-element volume
+average along the non-proportional load path:
+
+<p align="center">
+  <img src="assets/stress_strain_fem_vs_lstm.png" width="92%"
+       alt="Macroscopic stress-strain curves, FEM vs LSTM">
+</p>
+
 Mesh generalization — the quad-trained P-DivGNN run on quadratic-triangle (tri6)
 meshes at three refinement levels (the network never saw a triangle in training):
 
