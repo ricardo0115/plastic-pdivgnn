@@ -4,7 +4,6 @@ import contextlib
 import tempfile
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -14,12 +13,12 @@ import torch
 from PIL import Image
 from PIL import JpegImagePlugin  # noqa: F401 - register JPEG handler for PDF export
 
+from _common import fem_local_stress, random_strain_path
 from plgnn.scaling import NodeType
 from plgnn.physics_fem import compute_op_div_matrix
-from plgnn.datagen import Field, hole_plate_mesh_quad
+from plgnn.datagen import hole_plate_mesh_quad
 from plgnn.graph.build import compute_node_labels
 from plgnn.figutils import render_field_row
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
 from plgnn.models import LstmConstitutiveLaw, PlasticGNN
 
 COMP_LABELS: tuple[str, str, str] = (
@@ -32,9 +31,6 @@ LABELED_POINTS: tuple[tuple[float, float], ...] = (
     (0.70, 0.10),
 )
 POINT_NAMES: tuple[str, ...] = ("A", "B", "C", "D")
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
-)
 
 mpl.rcParams.update(
     {
@@ -45,57 +41,6 @@ mpl.rcParams.update(
         "font.family": "serif",
     }
 )
-
-
-def _random_strain_path(
-    rng: np.random.Generator,
-    low: float,
-    high: float,
-    n_macro_steps: int,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    strain_states: np.ndarray = rng.uniform(
-        low=low, high=high, size=(n_macro_steps, 3),
-    )
-    strain_states[:, 2] *= 2.0
-    segments: list[np.ndarray] = [
-        np.linspace(
-            start=(0.0, 0.0, 0.0),
-            stop=strain_states[0],
-            num=n_increments_per_step,
-            endpoint=False,
-        )
-    ]
-    for i in range(n_macro_steps - 1):
-        segments.append(
-            np.linspace(
-                start=strain_states[i],
-                stop=strain_states[i + 1],
-                num=n_increments_per_step,
-                endpoint=False,
-            )
-        )
-    segments.append(strain_states[-1])
-    return np.vstack(segments), strain_states
-
-
-def _run_fem(
-    mesh: pv.PolyData,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> np.ndarray:
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, _ = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    return local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
 
 
 def _clim(arr: np.ndarray, c: int) -> tuple[float, float]:
@@ -302,12 +247,12 @@ def main(
             f"tri={tri_mesh.n_points}",
         )
 
-    strain_interp, strain_states = _random_strain_path(
+    strain_interp, strain_states = random_strain_path(
         rng, strain_low, strain_high, strain_steps, increments_per_step,
     )
 
-    fem_quad: np.ndarray = _run_fem(quad_mesh, strain_states, increments_per_step)
-    fem_tri: np.ndarray = _run_fem(tri_mesh, strain_states, increments_per_step)
+    fem_quad: np.ndarray = fem_local_stress(quad_mesh, strain_states, increments_per_step)
+    fem_tri: np.ndarray = fem_local_stress(tri_mesh, strain_states, increments_per_step)
 
     lstm: LstmConstitutiveLaw = LstmConstitutiveLaw(lstm_checkpoint, device)
     lstm.eval()

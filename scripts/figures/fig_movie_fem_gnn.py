@@ -24,14 +24,13 @@ from __future__ import annotations
 import contextlib
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import numpy as np
 import pyvista as pv
 import torch
 
-from plgnn.datagen import Field, hole_plate_mesh
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
+from _common import fem_local_and_macro, random_strain_path
+from plgnn.datagen import hole_plate_mesh
 from plgnn.graph.build import compute_node_labels
 from plgnn.models import LstmConstitutiveLaw, PlasticGNN
 from plgnn.movie import (
@@ -41,73 +40,6 @@ from plgnn.movie import (
 )
 from plgnn.physics import compute_divergence_norm_field
 from plgnn.physics_fem import compute_op_div_matrix
-
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
-)
-
-
-def _random_strain_path(
-    rng: np.random.Generator,
-    low: float,
-    high: float,
-    n_macro_steps: int,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Piecewise-linear macro strain path through random control states.
-
-    Mirrors ``fig_three_model_compare._random_strain_path`` so the resulting
-    sequence length matches the FEM output (``incr * steps + 1``).
-    """
-    strain_states: np.ndarray = rng.uniform(
-        low=low, high=high, size=(n_macro_steps, 3),
-    )
-    strain_states[:, 2] *= 2.0
-    segments: list[np.ndarray] = [
-        np.linspace(
-            start=(0.0, 0.0, 0.0),
-            stop=strain_states[0],
-            num=n_increments_per_step,
-            endpoint=False,
-        )
-    ]
-    for i in range(n_macro_steps - 1):
-        segments.append(
-            np.linspace(
-                start=strain_states[i],
-                stop=strain_states[i + 1],
-                num=n_increments_per_step,
-                endpoint=False,
-            )
-        )
-    segments.append(strain_states[-1])
-    return np.vstack(segments), strain_states
-
-
-def _run_fem(
-    mesh: pv.PolyData,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Run the FEM reference, returning local ``[T, N, 3]`` and macro ``[T, 3]``."""
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, mean_fields = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    local_stress: np.ndarray = (
-        local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
-    )
-    macro_stress: np.ndarray = (
-        mean_fields[Field.STRESS].reshape(-1, 3).astype(np.float32)
-    )
-    return local_stress, macro_stress
 
 
 def _normalized_error_field(
@@ -202,7 +134,7 @@ def main(
         mesh_type="quad",
     ).extract_surface()
 
-    strain_interp, strain_states = _random_strain_path(
+    strain_interp, strain_states = random_strain_path(
         rng, strain_low, strain_high, main_strain_steps, increments_per_step,
     )
 
@@ -223,7 +155,7 @@ def main(
         lstm_stress_t, hidden_states_t, gnn_chunk_size,
     )
 
-    fem_field, fem_macro = _run_fem(mesh, strain_states, increments_per_step)
+    fem_field, fem_macro, _ = fem_local_and_macro(mesh, strain_states, increments_per_step)
     lstm_macro: np.ndarray = np.asarray(lstm_stress, dtype=np.float32)
 
     out: Path = write_comparison_movie(

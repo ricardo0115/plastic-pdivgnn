@@ -4,7 +4,6 @@ import contextlib
 import tempfile
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -14,8 +13,8 @@ import torch
 from PIL import Image
 from PIL import JpegImagePlugin  # noqa: F401 - register JPEG handler for PDF export
 
-from plgnn.datagen import Field, hole_plate_mesh
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
+from _common import component_clims, fem_local_and_macro, random_strain_path
+from plgnn.datagen import hole_plate_mesh
 from plgnn.figutils import render_field_row
 from plgnn.models import LstmConstitutiveLaw, PlasticGNN
 
@@ -29,9 +28,6 @@ LABELED_POINTS: tuple[tuple[float, float], ...] = (
     (0.70, 0.10),
 )
 POINT_NAMES: tuple[str, ...] = ("A", "B", "C", "D")
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
-)
 COLORS: dict[str, str] = {
     "FEM": "#1f77b4", "GNN": "#d62728", "P-DivGNN": "#2ca02c",
 }
@@ -56,75 +52,6 @@ mpl.rcParams.update(
         "lines.linewidth": 1.4,
     }
 )
-
-
-def _random_strain_path(
-    rng: np.random.Generator,
-    low: float,
-    high: float,
-    n_macro_steps: int,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    strain_states: np.ndarray = rng.uniform(
-        low=low, high=high, size=(n_macro_steps, 3),
-    )
-    strain_states[:, 2] *= 2.0
-    segments: list[np.ndarray] = [
-        np.linspace(
-            start=(0.0, 0.0, 0.0),
-            stop=strain_states[0],
-            num=n_increments_per_step,
-            endpoint=False,
-        )
-    ]
-    for i in range(n_macro_steps - 1):
-        segments.append(
-            np.linspace(
-                start=strain_states[i],
-                stop=strain_states[i + 1],
-                num=n_increments_per_step,
-                endpoint=False,
-            )
-        )
-    segments.append(strain_states[-1])
-    return np.vstack(segments), strain_states
-
-
-def _run_fem(
-    mesh: pv.PolyData,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return (local stress [T, N, 3], macro stress [T, 3], macro strain [T, 3])."""
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, mean_fields = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    local_stress: np.ndarray = local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
-    macro_stress: np.ndarray = np.asarray(mean_fields[Field.STRESS]).reshape(-1, 3).astype(np.float32)
-    macro_strain: np.ndarray = np.asarray(
-        mean_fields[Field.TOTAL_STRAIN]
-    ).reshape(-1, 3).astype(np.float32)
-    return local_stress, macro_stress, macro_strain
-
-
-def _component_clims(values: np.ndarray) -> list[tuple[float, float]]:
-    clims: list[tuple[float, float]] = []
-    for c in range(3):
-        lo, hi = float(values[:, c].min()), float(values[:, c].max())
-        if np.isclose(lo, hi):
-            eps: float = max(1e-12, abs(lo) * 1e-6)
-            lo -= eps
-            hi += eps
-        clims.append((lo, hi))
-    return clims
 
 
 def _trim_white_margins(
@@ -181,7 +108,7 @@ def _plot_stress_field_grid(
     pdivgnn_last: np.ndarray,
     outpath: Path,
 ) -> None:
-    clims: list[tuple[float, float]] = _component_clims(fem_last)
+    clims: list[tuple[float, float]] = component_clims(fem_last)
     with tempfile.TemporaryDirectory(prefix="three_model_") as tmpdir:
         tmp: Path = Path(tmpdir)
         fem_path: Path = tmp / "fem.png"
@@ -334,7 +261,7 @@ def main(
         mesh_type="quad",
     ).extract_surface()
 
-    strain_interp, strain_states = _random_strain_path(
+    strain_interp, strain_states = random_strain_path(
         rng, strain_low, strain_high,
         main_strain_steps, increments_per_step,
     )
@@ -351,7 +278,7 @@ def main(
         np.asarray(hidden_states, dtype=np.float32),
     ).to(device)
 
-    fem_stress, fem_macro_stress, fem_macro_strain = _run_fem(
+    fem_stress, fem_macro_stress, fem_macro_strain = fem_local_and_macro(
         mesh, strain_states, increments_per_step,
     )
 

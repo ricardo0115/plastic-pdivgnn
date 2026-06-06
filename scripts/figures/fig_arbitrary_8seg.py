@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -15,13 +14,11 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
 from plgnn.datagen import Field, hole_plate_mesh
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
 from plgnn.models import LstmConstitutiveLaw
 
+from _common import solve_fem
+
 COMPONENTS: tuple[str, ...] = ("xx", "yy", "xy")
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
-)
 
 mpl.rcParams.update(
     {
@@ -94,25 +91,6 @@ def _generate_strain_path(
             )
         )
     return strain_targets, np.vstack(segments)
-
-
-def _run_fem(
-    mesh: pv.PolyData,
-    strain_targets: np.ndarray,
-    n_increments_per_step: int,
-) -> tuple[dict, dict]:
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, mean_fields = compute_mechanical_fields_non_linear(
-        strain_path=strain_targets,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    return local_fields, mean_fields
 
 
 def _plot_strain_path(full_path: np.ndarray, outpath: Path) -> None:
@@ -272,7 +250,7 @@ def main(
         mesh_type="quad",
     ).extract_surface()
 
-    _, mean_fields = _run_fem(mesh, strain_targets, n_increments_per_step)
+    _, mean_fields = solve_fem(mesh, strain_targets, n_increments_per_step)
     strain_fem: np.ndarray = mean_fields[Field.TOTAL_STRAIN][:, :, 0]
     stress_fem: np.ndarray = mean_fields[Field.STRESS][:, :, 0]
 

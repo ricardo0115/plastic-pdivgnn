@@ -7,7 +7,6 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,12 +15,9 @@ import pyvista as pv
 import torch
 
 from plgnn.datagen import hole_plate_mesh
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
 from plgnn.models import LstmConstitutiveLaw, PlasticGNN
 
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
-)
+from _common import solve_fem
 
 
 def _random_strain_path(
@@ -59,31 +55,13 @@ def _random_strain_path(
     )
 
 
-def _run_fem(
-    mesh: pv.PolyData,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> None:
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    _ = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-
-
 def _fem_worker(
     mesh: pv.PolyData,
     strain_states: np.ndarray,
     n_increments_per_step: int,
 ) -> tuple[int, float]:
     t0: float = time.perf_counter()
-    _run_fem(mesh, strain_states, n_increments_per_step)
+    _ = solve_fem(mesh, strain_states, n_increments_per_step)
     return os.getpid(), time.perf_counter() - t0
 
 
@@ -376,7 +354,7 @@ def main(
             )
 
         if not skip_fem:
-            _run_fem(mesh, strain_states_warm, n_increments_per_step)
+            _ = solve_fem(mesh, strain_states_warm, n_increments_per_step)
 
         total_lstm: float = 0.0
         total_gnn: float = 0.0

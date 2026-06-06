@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -13,8 +12,9 @@ import torch
 from matplotlib.ticker import MaxNLocator
 
 from plgnn.datagen import Field, hole_plate_mesh
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
 from plgnn.models import LstmConstitutiveLaw
+
+from _common import random_strain_path, solve_fem
 
 COMPONENTS: tuple[str, ...] = ("xx", "yy", "xy")
 LABELED_POINTS: tuple[tuple[float, float], ...] = (
@@ -22,9 +22,6 @@ LABELED_POINTS: tuple[tuple[float, float], ...] = (
     (0.20, 0.40),
     (0.70, 0.50),
     (0.70, 0.10),
-)
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
 )
 
 mpl.rcParams.update(
@@ -82,57 +79,6 @@ def _legend(ax: plt.Axes) -> None:
         edgecolor="0.6", fontsize=11, borderpad=0.35,
         labelspacing=0.25, handlelength=1.6,
     )
-
-
-def _random_strain_path(
-    rng: np.random.Generator,
-    low: float,
-    high: float,
-    n_macro_steps: int,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    strain_states: np.ndarray = rng.uniform(
-        low=low, high=high, size=(n_macro_steps, 3),
-    )
-    strain_states[:, 2] *= 2.0
-    segments: list[np.ndarray] = [
-        np.linspace(
-            start=(0.0, 0.0, 0.0),
-            stop=strain_states[0],
-            num=n_increments_per_step,
-            endpoint=False,
-        )
-    ]
-    for i in range(n_macro_steps - 1):
-        segments.append(
-            np.linspace(
-                start=strain_states[i],
-                stop=strain_states[i + 1],
-                num=n_increments_per_step,
-                endpoint=False,
-            )
-        )
-    segments.append(strain_states[-1])
-    return np.vstack(segments), strain_states
-
-
-def _run_fem(
-    mesh: pv.PolyData,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> tuple[dict, dict]:
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, mean_fields = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    return local_fields, mean_fields
 
 
 def _plot_mesh_points_labeled(
@@ -263,7 +209,7 @@ def main(
         mesh, LABELED_POINTS, outdir / "mesh_points_labeled.pdf",
     )
 
-    strain_interp, strain_states = _random_strain_path(
+    strain_interp, strain_states = random_strain_path(
         rng, strain_low, strain_high,
         main_strain_steps, increments_per_step,
     )
@@ -274,7 +220,7 @@ def main(
     lstm.eval()
     lstm_stress, _ = lstm.forward(strain_interp, return_hidden_states=True)
 
-    _, mean_fields = _run_fem(mesh, strain_states, increments_per_step)
+    _, mean_fields = solve_fem(mesh, strain_states, increments_per_step)
     _plot_stress_strain_triptych(
         mean_fields, np.asarray(lstm_stress, dtype=np.float32),
         outdir / "stress_strain_fem_vs_lstm_microscopic.pdf",

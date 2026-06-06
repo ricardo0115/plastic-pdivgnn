@@ -4,7 +4,6 @@ import contextlib
 import tempfile
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import numpy as np
 import pyvista as pv
@@ -12,72 +11,18 @@ import torch
 from PIL import Image
 
 import _tri6
+from _common import fem_local_stress, random_strain_path, run_gnn_on_mesh
 from _labels import add_row_labels_to_png
-from plgnn.datagen import Field, hole_plate_mesh, hole_plate_mesh_tri6
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
+from plgnn.datagen import hole_plate_mesh, hole_plate_mesh_tri6
 from plgnn.figutils import render_field_row, vstack_rows
-from plgnn.models import LstmConstitutiveLaw, PlasticGNN
+from plgnn.models import LstmConstitutiveLaw
 
 ROW_LABELS: tuple[str, str, str] = ("Coarse mesh", "Medium mesh", "Fine mesh")
 _LEVELS: tuple[tuple[str, float], ...] = (
     ("coarse", 0.20), ("medium", 0.12), ("fine", 0.06),
 )
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
-)
 
 _CAM_ZOOM: float = 0.95
-
-
-def _random_strain_path(
-    rng: np.random.Generator,
-    low: float,
-    high: float,
-    n_macro_steps: int,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    strain_states: np.ndarray = rng.uniform(
-        low=low, high=high, size=(n_macro_steps, 3),
-    )
-    strain_states[:, 2] *= 2.0
-    segments: list[np.ndarray] = [
-        np.linspace(
-            start=(0.0, 0.0, 0.0),
-            stop=strain_states[0],
-            num=n_increments_per_step,
-            endpoint=False,
-        )
-    ]
-    for i in range(n_macro_steps - 1):
-        segments.append(
-            np.linspace(
-                start=strain_states[i],
-                stop=strain_states[i + 1],
-                num=n_increments_per_step,
-                endpoint=False,
-            )
-        )
-    segments.append(strain_states[-1])
-    return np.vstack(segments), strain_states
-
-
-def _run_fem(
-    mesh: pv.PolyData,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> np.ndarray:
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, _ = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    return local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
 
 
 def _build_tri6_refinement_meshes(
@@ -145,32 +90,6 @@ def _save_quad_stress_last(
     Image.fromarray(row).save(outpath.as_posix())
 
 
-def _run_gnn_on_mesh(
-    mesh: pv.PolyData,
-    lstm_stress_last: np.ndarray,
-    hidden_state_last: np.ndarray,
-    gnn_checkpoint: str,
-    device: str,
-    chunk_size: int,
-) -> np.ndarray:
-    stress_seq: np.ndarray = np.expand_dims(
-        lstm_stress_last, axis=0,
-    ).astype(np.float32)
-    hidden_seq: np.ndarray = np.expand_dims(
-        hidden_state_last, axis=0,
-    ).astype(np.float32)
-    stress_t: torch.Tensor = torch.from_numpy(stress_seq).to(device)
-    hidden_t: torch.Tensor = torch.from_numpy(hidden_seq).to(device)
-    gnn: PlasticGNN = PlasticGNN(gnn_checkpoint, device, mesh)
-    gnn.eval()
-    pred = gnn.forward(stress_t, hidden_t, chunk_size=chunk_size)
-    out: np.ndarray = np.asarray(pred, dtype=np.float32)[-1]
-    del gnn
-    if device.startswith("cuda"):
-        torch.cuda.empty_cache()
-    return out
-
-
 @torch.no_grad()
 def main(
     lstm_checkpoint: str,
@@ -224,11 +143,11 @@ def main(
         quad_ref_mesh, outdir / "refinement_ref_quad_mesh_tri.png",
     )
 
-    strain_interp, strain_states = _random_strain_path(
+    strain_interp, strain_states = random_strain_path(
         rng, strain_low, strain_high,
         main_strain_steps, increments_per_step,
     )
-    quad_stress_seq: np.ndarray = _run_fem(
+    quad_stress_seq: np.ndarray = fem_local_stress(
         quad_ref_mesh, strain_states, increments_per_step,
     )
     _save_quad_stress_last(
@@ -243,7 +162,7 @@ def main(
 
     fem_stresses_last: list[np.ndarray] = []
     for i, mesh in enumerate(tri_meshes):
-        fem_seq: np.ndarray = _run_fem(mesh, strain_states, increments_per_step)
+        fem_seq: np.ndarray = fem_local_stress(mesh, strain_states, increments_per_step)
         fem_stresses_last.append(fem_seq[-1])
         print(f"FEM done mesh {i + 1}/{len(tri_meshes)}")
 
@@ -267,7 +186,7 @@ def main(
     hidden_state_last: np.ndarray = np.asarray(hidden_states)[-1]
 
     gnn_stresses_last: list[np.ndarray] = [
-        _run_gnn_on_mesh(
+        run_gnn_on_mesh(
             surface, lstm_stress_last, hidden_state_last,
             gnn_checkpoint, device, gnn_chunk_size,
         )
@@ -286,7 +205,7 @@ def main(
         )
 
     pdivgnn_stresses_last: list[np.ndarray] = [
-        _run_gnn_on_mesh(
+        run_gnn_on_mesh(
             surface, lstm_stress_last, hidden_state_last,
             pdivgnn_checkpoint, device, gnn_chunk_size,
         )

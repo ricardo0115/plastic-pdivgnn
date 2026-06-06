@@ -17,7 +17,6 @@ from __future__ import annotations
 import contextlib
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import numpy as np
 import pyvista as pv
@@ -26,91 +25,12 @@ from PIL import Image
 from PIL import JpegImagePlugin  # noqa: F401 - register JPEG handler for PDF export
 
 import _tri6
-from plgnn.datagen import Field, hole_plate_mesh_quad, hole_plate_mesh_tri6
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
+from _common import fem_local_stress, random_strain_path, run_gnn_on_mesh
+from plgnn.datagen import hole_plate_mesh_quad, hole_plate_mesh_tri6
 from plgnn.figutils import render_field_row, vstack_rows
-from plgnn.models import LstmConstitutiveLaw, PlasticGNN
+from plgnn.models import LstmConstitutiveLaw
 
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
-)
 COMPS: tuple[str, str, str] = ("XX", "YY", "XY")
-
-
-def _random_strain_path(
-    rng: np.random.Generator,
-    low: float,
-    high: float,
-    n_macro_steps: int,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    strain_states: np.ndarray = rng.uniform(
-        low=low, high=high, size=(n_macro_steps, 3),
-    )
-    strain_states[:, 2] *= 2.0
-    segments: list[np.ndarray] = [
-        np.linspace(
-            start=(0.0, 0.0, 0.0),
-            stop=strain_states[0],
-            num=n_increments_per_step,
-            endpoint=False,
-        )
-    ]
-    for i in range(n_macro_steps - 1):
-        segments.append(
-            np.linspace(
-                start=strain_states[i],
-                stop=strain_states[i + 1],
-                num=n_increments_per_step,
-                endpoint=False,
-            )
-        )
-    segments.append(strain_states[-1])
-    return np.vstack(segments), strain_states
-
-
-def _run_fem(
-    mesh: pv.DataSet,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> np.ndarray:
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, _ = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    return local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
-
-
-def _run_gnn_on_mesh(
-    mesh: pv.PolyData,
-    lstm_stress_last: np.ndarray,
-    hidden_state_last: np.ndarray,
-    gnn_checkpoint: str,
-    device: str,
-    chunk_size: int,
-) -> np.ndarray:
-    stress_t: torch.Tensor = torch.from_numpy(
-        np.expand_dims(lstm_stress_last, axis=0).astype(np.float32),
-    ).to(device)
-    hidden_t: torch.Tensor = torch.from_numpy(
-        np.expand_dims(hidden_state_last, axis=0).astype(np.float32),
-    ).to(device)
-    gnn: PlasticGNN = PlasticGNN(gnn_checkpoint, device, mesh)
-    gnn.eval()
-    out: np.ndarray = np.asarray(
-        gnn.forward(stress_t, hidden_t, chunk_size=chunk_size), dtype=np.float32,
-    )[-1]
-    del gnn
-    if device.startswith("cuda"):
-        torch.cuda.empty_cache()
-    return out
 
 
 def _titles(label: str) -> tuple[str, str, str]:
@@ -160,12 +80,12 @@ def main(
     tri6_mesh: pv.UnstructuredGrid = hole_plate_mesh_tri6(**mesh_kwargs)
     tri6_surface: pv.PolyData = tri6_mesh.extract_surface()
 
-    strain_interp, strain_states = _random_strain_path(
+    strain_interp, strain_states = random_strain_path(
         rng, strain_low, strain_high, main_strain_steps, increments_per_step,
     )
 
-    fem_quad: np.ndarray = _run_fem(quad_mesh, strain_states, increments_per_step)[-1]
-    fem_tri6: np.ndarray = _run_fem(tri6_mesh, strain_states, increments_per_step)[-1]
+    fem_quad: np.ndarray = fem_local_stress(quad_mesh, strain_states, increments_per_step)[-1]
+    fem_tri6: np.ndarray = fem_local_stress(tri6_mesh, strain_states, increments_per_step)[-1]
 
     lstm: LstmConstitutiveLaw = LstmConstitutiveLaw(lstm_checkpoint, device)
     lstm.eval()
@@ -175,11 +95,11 @@ def main(
     lstm_stress_last: np.ndarray = np.asarray(lstm_stress)[-1]
     hidden_state_last: np.ndarray = np.asarray(hidden_states)[-1]
 
-    gnn_tri6: np.ndarray = _run_gnn_on_mesh(
+    gnn_tri6: np.ndarray = run_gnn_on_mesh(
         tri6_surface, lstm_stress_last, hidden_state_last,
         gnn_checkpoint, device, gnn_chunk_size,
     )
-    pdivgnn_tri6: np.ndarray = _run_gnn_on_mesh(
+    pdivgnn_tri6: np.ndarray = run_gnn_on_mesh(
         tri6_surface, lstm_stress_last, hidden_state_last,
         pdivgnn_checkpoint, device, gnn_chunk_size,
     )

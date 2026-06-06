@@ -4,85 +4,19 @@ import contextlib
 import tempfile
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import numpy as np
 import pyvista as pv
 from PIL import Image
 from PIL import JpegImagePlugin  # noqa: F401 - register JPEG handler for PDF export
 
-from plgnn.datagen import Field, hole_plate_mesh_quad
+from _common import component_clims, fem_local_stress, random_strain_path
+from plgnn.datagen import hole_plate_mesh_quad
 from plgnn.figutils import render_field_row
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
-
-MATERIAL_PROPS: np.ndarray = np.array([1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float)
 
 _WIN_W: int = 2000
 _ROW_H: int = 760
 _CAM_ZOOM: float = 0.96
-
-
-def _random_strain_path(
-    rng: np.random.Generator,
-    low: float,
-    high: float,
-    n_macro_steps: int,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    strain_states: np.ndarray = rng.uniform(
-        low=low, high=high, size=(n_macro_steps, 3),
-    )
-    strain_states[:, 2] *= 2.0
-    segments: list[np.ndarray] = [
-        np.linspace(
-            start=(0.0, 0.0, 0.0),
-            stop=strain_states[0],
-            num=n_increments_per_step,
-            endpoint=False,
-        )
-    ]
-    for i in range(n_macro_steps - 1):
-        segments.append(
-            np.linspace(
-                start=strain_states[i],
-                stop=strain_states[i + 1],
-                num=n_increments_per_step,
-                endpoint=False,
-            )
-        )
-    segments.append(strain_states[-1])
-    return np.vstack(segments), strain_states
-
-
-def _run_fem(
-    mesh: pv.PolyData,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> np.ndarray:
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, _ = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    return local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
-
-
-def _component_clims(values: np.ndarray) -> list[tuple[float, float]]:
-    clims: list[tuple[float, float]] = []
-    for c in range(3):
-        lo, hi = float(values[:, c].min()), float(values[:, c].max())
-        if np.isclose(lo, hi):
-            eps: float = max(1e-12, abs(lo) * 1e-6)
-            lo -= eps
-            hi += eps
-        clims.append((lo, hi))
-    return clims
 
 
 def _render_row(
@@ -103,7 +37,7 @@ def _save_fem_compare_figure(
     label: str,
     outpath: Path,
 ) -> None:
-    clims: list[tuple[float, float]] = _component_clims(stress_last)
+    clims: list[tuple[float, float]] = component_clims(stress_last)
     titles: tuple[str, str, str] = (
         f"{label} Stress XX",
         f"{label} Stress YY",
@@ -164,13 +98,13 @@ def main(
             "meshes must share all nodes.",
         )
 
-    _, strain_states = _random_strain_path(
+    _, strain_states = random_strain_path(
         rng, strain_low, strain_high,
         main_strain_steps, increments_per_step,
     )
 
-    quad_stress: np.ndarray = _run_fem(quad_mesh, strain_states, increments_per_step)
-    tri_stress: np.ndarray = _run_fem(tri_mesh, strain_states, increments_per_step)
+    quad_stress: np.ndarray = fem_local_stress(quad_mesh, strain_states, increments_per_step)
+    tri_stress: np.ndarray = fem_local_stress(tri_mesh, strain_states, increments_per_step)
 
     _save_fem_compare_figure(
         quad_mesh, quad_stress[-1], "FEM (Quad)",

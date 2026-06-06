@@ -23,7 +23,6 @@ import contextlib
 import tempfile
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import numpy as np
 import pyvista as pv
@@ -33,105 +32,20 @@ from PIL import JpegImagePlugin  # noqa: F401 - register JPEG handler for PDF ex
 from scipy.spatial import cKDTree
 
 import _tri6
-from _labels import add_row_labels_to_png
-from plgnn.datagen import Field, hole_plate_mesh_tri6
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
-from plgnn.figutils import vstack_rows
-from plgnn.models import LstmConstitutiveLaw, PlasticGNN
-
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
+from _common import (
+    fem_local_stress,
+    per_node_nmse_field,
+    random_strain_path,
+    run_gnn_on_mesh,
 )
+from _labels import add_row_labels_to_png
+from plgnn.datagen import hole_plate_mesh_tri6
+from plgnn.figutils import vstack_rows
+from plgnn.models import LstmConstitutiveLaw
+
 COMPS: tuple[str, str, str] = ("XX", "YY", "XY")
 COARSE_SIZE: float = 0.20
 FINE_SIZE: float = 0.06
-
-
-def _random_strain_path(
-    rng: np.random.Generator,
-    low: float,
-    high: float,
-    n_macro_steps: int,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    strain_states: np.ndarray = rng.uniform(
-        low=low, high=high, size=(n_macro_steps, 3),
-    )
-    strain_states[:, 2] *= 2.0
-    segments: list[np.ndarray] = [
-        np.linspace(
-            start=(0.0, 0.0, 0.0),
-            stop=strain_states[0],
-            num=n_increments_per_step,
-            endpoint=False,
-        )
-    ]
-    for i in range(n_macro_steps - 1):
-        segments.append(
-            np.linspace(
-                start=strain_states[i],
-                stop=strain_states[i + 1],
-                num=n_increments_per_step,
-                endpoint=False,
-            )
-        )
-    segments.append(strain_states[-1])
-    return np.vstack(segments), strain_states
-
-
-def _run_fem(
-    mesh: pv.DataSet,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> np.ndarray:
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, _ = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    return local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
-
-
-def _run_gnn_on_mesh(
-    mesh: pv.PolyData,
-    lstm_stress_last: np.ndarray,
-    hidden_state_last: np.ndarray,
-    gnn_checkpoint: str,
-    device: str,
-    chunk_size: int,
-) -> np.ndarray:
-    stress_t: torch.Tensor = torch.from_numpy(
-        np.expand_dims(lstm_stress_last, axis=0).astype(np.float32),
-    ).to(device)
-    hidden_t: torch.Tensor = torch.from_numpy(
-        np.expand_dims(hidden_state_last, axis=0).astype(np.float32),
-    ).to(device)
-    gnn: PlasticGNN = PlasticGNN(gnn_checkpoint, device, mesh)
-    gnn.eval()
-    out: np.ndarray = np.asarray(
-        gnn.forward(stress_t, hidden_t, chunk_size=chunk_size), dtype=np.float32,
-    )[-1]
-    del gnn
-    if device.startswith("cuda"):
-        torch.cuda.empty_cache()
-    return out
-
-
-def _per_node_nmse_field(
-    fem_last: np.ndarray, pred_last: np.ndarray,
-) -> np.ndarray:
-    fem: np.ndarray = fem_last.astype(np.float64)
-    pred: np.ndarray = pred_last.astype(np.float64)
-    mean_c: np.ndarray = fem.mean(axis=0, keepdims=True)
-    squared_error: np.ndarray = (fem - pred) ** 2
-    normalization: np.ndarray = ((fem - mean_c) ** 2).sum(axis=0, keepdims=True)
-    return (squared_error / (normalization + 1e-8)).astype(np.float32)
 
 
 def _tri6_connectivity(grid: pv.DataSet) -> np.ndarray:
@@ -250,7 +164,7 @@ def main(
     coarse_surface: pv.PolyData = coarse_mesh.extract_surface()
     fine_surface: pv.PolyData = fine_mesh.extract_surface()
 
-    strain_interp, strain_states = _random_strain_path(
+    strain_interp, strain_states = random_strain_path(
         rng, strain_low, strain_high, main_strain_steps, increments_per_step,
     )
 
@@ -262,19 +176,19 @@ def main(
     lstm_stress_last: np.ndarray = np.asarray(lstm_stress)[-1]
     hidden_state_last: np.ndarray = np.asarray(hidden_states)[-1]
 
-    fem_fine: np.ndarray = _run_fem(fine_mesh, strain_states, increments_per_step)[-1]
-    gnn_fine: np.ndarray = _run_gnn_on_mesh(
+    fem_fine: np.ndarray = fem_local_stress(fine_mesh, strain_states, increments_per_step)[-1]
+    gnn_fine: np.ndarray = run_gnn_on_mesh(
         fine_surface, lstm_stress_last, hidden_state_last,
         gnn_checkpoint, device, gnn_chunk_size,
     )
-    pdivgnn_fine: np.ndarray = _run_gnn_on_mesh(
+    pdivgnn_fine: np.ndarray = run_gnn_on_mesh(
         fine_surface, lstm_stress_last, hidden_state_last,
         pdivgnn_checkpoint, device, gnn_chunk_size,
     )
 
     fine_errors: dict[str, np.ndarray] = {
-        "gnn": _per_node_nmse_field(fem_fine, gnn_fine),
-        "pdivgnn": _per_node_nmse_field(fem_fine, pdivgnn_fine),
+        "gnn": per_node_nmse_field(fem_fine, gnn_fine),
+        "pdivgnn": per_node_nmse_field(fem_fine, pdivgnn_fine),
     }
     _render_error_grid(
         fine_mesh, fine_errors,
@@ -283,14 +197,14 @@ def main(
     )
     print(f"Wrote {outdir / 'refinement_error_fine.png'}")
 
-    fem_coarse: np.ndarray = _run_fem(
+    fem_coarse: np.ndarray = fem_local_stress(
         coarse_mesh, strain_states, increments_per_step,
     )[-1]
-    gnn_coarse: np.ndarray = _run_gnn_on_mesh(
+    gnn_coarse: np.ndarray = run_gnn_on_mesh(
         coarse_surface, lstm_stress_last, hidden_state_last,
         gnn_checkpoint, device, gnn_chunk_size,
     )
-    pdivgnn_coarse: np.ndarray = _run_gnn_on_mesh(
+    pdivgnn_coarse: np.ndarray = run_gnn_on_mesh(
         coarse_surface, lstm_stress_last, hidden_state_last,
         pdivgnn_checkpoint, device, gnn_chunk_size,
     )
@@ -305,7 +219,7 @@ def main(
         )
     }
     cross_errors: dict[str, np.ndarray] = {
-        key: _per_node_nmse_field(fem_fine, field)
+        key: per_node_nmse_field(fem_fine, field)
         for key, field in coarse_on_fine.items()
     }
     _render_error_grid(

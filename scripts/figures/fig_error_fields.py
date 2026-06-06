@@ -21,7 +21,6 @@ from __future__ import annotations
 import contextlib
 from pathlib import Path
 
-import fedoo as fd
 import fire
 import numpy as np
 import pyvista as pv
@@ -29,69 +28,15 @@ import torch
 from PIL import Image
 from PIL import JpegImagePlugin  # noqa: F401 - register JPEG handler for PDF export
 
-from plgnn.datagen import Field, hole_plate_mesh_quad
-from plgnn.fem_sim import compute_mechanical_fields_non_linear
+from _common import fem_local_stress, per_node_nmse_field, random_strain_path
+from plgnn.datagen import hole_plate_mesh_quad
 from plgnn.figutils import render_field_row, vstack_rows
 from plgnn.graph.build import compute_node_labels
 from plgnn.models import LstmConstitutiveLaw, PlasticGNN
 from plgnn.physics import compute_divergence_norm_field
 from plgnn.physics_fem import compute_op_div_matrix
 
-MATERIAL_PROPS: np.ndarray = np.array(
-    [1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3], dtype=float,
-)
 COMPS: tuple[str, str, str] = ("XX", "YY", "XY")
-
-
-def _random_strain_path(
-    rng: np.random.Generator,
-    low: float,
-    high: float,
-    n_macro_steps: int,
-    n_increments_per_step: int,
-) -> tuple[np.ndarray, np.ndarray]:
-    strain_states: np.ndarray = rng.uniform(
-        low=low, high=high, size=(n_macro_steps, 3),
-    )
-    strain_states[:, 2] *= 2.0
-    segments: list[np.ndarray] = [
-        np.linspace(
-            start=(0.0, 0.0, 0.0),
-            stop=strain_states[0],
-            num=n_increments_per_step,
-            endpoint=False,
-        )
-    ]
-    for i in range(n_macro_steps - 1):
-        segments.append(
-            np.linspace(
-                start=strain_states[i],
-                stop=strain_states[i + 1],
-                num=n_increments_per_step,
-                endpoint=False,
-            )
-        )
-    segments.append(strain_states[-1])
-    return np.vstack(segments), strain_states
-
-
-def _run_fem(
-    mesh: pv.DataSet,
-    strain_states: np.ndarray,
-    n_increments_per_step: int,
-) -> np.ndarray:
-    mesh_fd: fd.Mesh = fd.Mesh.from_pyvista(mesh).as_2d()
-    material = fd.constitutivelaw.Simcoon("EPICP", MATERIAL_PROPS.copy())
-    local_fields, _ = compute_mechanical_fields_non_linear(
-        strain_path=strain_states,
-        mesh=mesh_fd,
-        constitutive_law=material,
-        n_increments_per_step=n_increments_per_step,
-        modeling_space="2Dplane",
-        verbose=False,
-        nr_criterion_tol=1e-4,
-    )
-    return local_fields[Field.STRESS].transpose(0, 2, 1).astype(np.float32)
 
 
 def _run_gnn(
@@ -112,17 +57,6 @@ def _run_gnn(
     if device.startswith("cuda"):
         torch.cuda.empty_cache()
     return out
-
-
-def _per_node_nmse_field(
-    fem_last: np.ndarray, pred_last: np.ndarray,
-) -> np.ndarray:
-    fem: np.ndarray = fem_last.astype(np.float64)
-    pred: np.ndarray = pred_last.astype(np.float64)
-    mean_c: np.ndarray = fem.mean(axis=0, keepdims=True)
-    squared_error: np.ndarray = (fem - pred) ** 2
-    normalization: np.ndarray = ((fem - mean_c) ** 2).sum(axis=0, keepdims=True)
-    return (squared_error / (normalization + 1e-8)).astype(np.float32)
 
 
 def _shared_component_clims(*fields: np.ndarray) -> list[tuple[float, float]]:
@@ -176,7 +110,7 @@ def main(
         global_mesh_refinement_size=global_mesh_refinement_size,
     ).extract_surface()
 
-    strain_interp, strain_states = _random_strain_path(
+    strain_interp, strain_states = random_strain_path(
         rng, strain_low, strain_high, main_strain_steps, increments_per_step,
     )
 
@@ -192,7 +126,7 @@ def main(
         np.asarray(hidden_states, dtype=np.float32),
     ).to(device)
 
-    fem_last: np.ndarray = _run_fem(mesh, strain_states, increments_per_step)[-1]
+    fem_last: np.ndarray = fem_local_stress(mesh, strain_states, increments_per_step)[-1]
     gnn_last: np.ndarray = _run_gnn(
         mesh, lstm_stress_t, hidden_states_t,
         gnn_checkpoint, device, gnn_chunk_size,
@@ -202,8 +136,8 @@ def main(
         pdivgnn_checkpoint, device, gnn_chunk_size,
     )
 
-    e_gnn: np.ndarray = _per_node_nmse_field(fem_last, gnn_last)
-    e_pdivgnn: np.ndarray = _per_node_nmse_field(fem_last, pdivgnn_last)
+    e_gnn: np.ndarray = per_node_nmse_field(fem_last, gnn_last)
+    e_pdivgnn: np.ndarray = per_node_nmse_field(fem_last, pdivgnn_last)
     nmse_clims: list[tuple[float, float]] = _shared_component_clims(e_gnn, e_pdivgnn)
 
     nmse_rows: list[np.ndarray] = [
