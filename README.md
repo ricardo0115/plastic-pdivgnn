@@ -172,7 +172,7 @@ pyproject.toml              dependencies
 | `fig_mesh_quad_tri.py` | quad / tri meshes + FE field (geometry only, no weights) |
 | `fig_movie_fem_gnn.py` | animated FE vs P-DivGNN comparison movie |
 
-Outputs are written to `outputs/figures/` (kept out of git). The mesh-refinement
+Outputs are written to `outputs/figures/`. The mesh-refinement
 and cross-mesh tri6 figures use **genuine quadratic triangles**: the FE and the GNN
 run on the tri6 elements and the fields are rendered with the tri6 shape functions
 (curved sides, mid-edge values). `fig_refinement_error.py` additionally interpolates
