@@ -7,11 +7,13 @@ LSTM + graph neural network.**
 ![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)
 ![PyG](https://img.shields.io/badge/PyTorch%20Geometric-3C2179)
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+[![arXiv](https://img.shields.io/badge/arXiv-2606.10909-b31b1b.svg)](https://arxiv.org/abs/2606.10909)
 [![Interactive abstract](https://img.shields.io/badge/🌐_Interactive_abstract-online-2ea44f)](https://ricardo0115.github.io/plastic-pdivgnn/)
 
 > Reproducibility code for the paper
 > **Non-linear mechanical field reconstruction coupling recurrent neural networks
-> with graph neural networks** *(venue: TBD)*.
+> with physics-informed graph neural networks**
+> ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909), submitted to CMAME).
 
 A Long Short-Term Memory (LSTM) network encodes the macroscopic strain–stress
 history of an elasto-plastic representative unit cell into a hidden state; a
@@ -56,6 +58,8 @@ path, with the macroscopic stress-strain curves (bottom). Produced by
 - **Mesh-agnostic.** The GNN runs on quadrilateral, linear-triangle and quadratic
   triangle (tri6) meshes it was never trained on (cross-mesh and mesh-refinement
   studies).
+- **Train fine, predict coarse.** Trained on a fine mesh, the surrogate predicts
+  high-fidelity fields on coarse meshes.
 - **Physics-informed.** P-DivGNN penalizes the discrete stress divergence, so the
   reconstructed fields are closer to mechanical equilibrium.
 - **Reproducible.** Committed weights + on-the-fly finite-element reference: every
@@ -288,16 +292,22 @@ not stored in git. Regenerate it with `scripts/generate_dataset.py`.
 
 ## Citation
 
-The paper is under review; citation details will be finalized upon publication.
+A preprint is available on arXiv ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909));
+the paper is under review at CMAME. Please cite:
 
 ```bibtex
-@article{guevaragarban_plastic_lstm_gnn,
-  title   = {Non-linear mechanical field reconstruction coupling recurrent
-             neural networks with graph neural networks},
-  author  = {Guevara Garban, Manuel Ricardo and others},
-  journal = {TBD},
-  year    = {2026},
-  note    = {Under review}
+@article{GuevaraGarban2026LSTMGNN,
+  author        = {Guevara Garban, Manuel Ricardo and Chemisky, Yves and
+                   Pruli{\`e}re, {\'E}tienne and Cl{\'e}ment, Micha{\"e}l and
+                   Abendroth, Martin and Kiefer, Bjoern},
+  title         = {Non-linear mechanical field reconstruction coupling recurrent
+                   neural networks with physics-informed graph neural networks},
+  journal       = {Computer Methods in Applied Mechanics and Engineering},
+  year          = {2026},
+  eprint        = {2606.10909},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CE},
+  note          = {Submitted; preprint arXiv:2606.10909}
 }
 ```
 
