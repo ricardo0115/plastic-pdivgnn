@@ -267,7 +267,7 @@ def main(
     latent_size: int = 128,
     hidden_state_size: int = 64,
     test_fraction: float = 0.3,
-    seed: int = 68,
+    seed: int = 69,
     integrated_macro: bool = False,
     macro_sidecar: str | None = None,
     limit_sims: int | None = None,

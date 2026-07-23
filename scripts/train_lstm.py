@@ -29,7 +29,8 @@ def _load_sim(npz_path: Path) -> tuple[np.ndarray, np.ndarray]:
         macro_strain = npz["macro_strain"].astype(np.float32)
         macro_stress = npz["macro_stress"].astype(np.float32)
     strain_seq = np.squeeze(macro_strain, axis=-1)
-    return strain_seq[1:], macro_stress[1:]
+    stress_seq = np.squeeze(macro_stress, axis=-1)
+    return strain_seq[1:], stress_seq[1:]
 
 
 class MacroPathDataset(Dataset):
@@ -130,7 +131,7 @@ def main(
     epochs: int = 2000,
     learning_rate: float = 1e-3,
     test_fraction: float = 0.3,
-    seed: int = 68,
+    seed: int = 69,
     num_workers: int = 0,
 ) -> None:
     data_path = Path(data_dir).expanduser().resolve()
