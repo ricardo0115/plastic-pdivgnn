@@ -73,7 +73,6 @@ class SnapshotGraphDataset(Dataset):
         edge_attr: torch.Tensor,
         snapshot_indices: tuple[int, ...],
         use_lstm_hidden_states: bool = True,
-        macro_all: np.ndarray | None = None,
     ) -> None:
         self.pairs = pairs
         self.positions = positions
@@ -82,7 +81,6 @@ class SnapshotGraphDataset(Dataset):
         self.edge_attr = edge_attr
         self.snapshot_indices = snapshot_indices
         self.use_lstm_hidden_states = use_lstm_hidden_states
-        self.macro_all = macro_all
         self.n_nodes = positions.shape[0]
         self._cache: list[dict[str, torch.Tensor]] = [{} for _ in pairs]
 
@@ -96,17 +94,16 @@ class SnapshotGraphDataset(Dataset):
         sim_path, hidden_path = self.pairs[sim_idx]
         with np.load(sim_path) as npz:
             local_stress = npz["local_stress"].astype(np.float32)[1:]
+            macro_stress = npz["macro_stress"].astype(np.float32)
 
         stress = torch.from_numpy(local_stress[list(self.snapshot_indices)])
         stress = stress.permute(0, 2, 1).contiguous()
-        if self.macro_all is None:
-            mean_stress = stress.mean(dim=1)
-        else:
-            # Stored Hill-Mandel (volume-integrated) macro stress, indexed by sim id.
-            sim_id = int(sim_path.stem.split("_")[1])
-            mean_stress = torch.from_numpy(
-                self.macro_all[sim_id][1:][list(self.snapshot_indices)]
-            )
+        # Volume-averaged (Hill-Mandel) macro stress: the only valid macro
+        # input; a nodal mean is biased by the mesh refinement.
+        macro_sequence = np.squeeze(macro_stress, axis=-1)[1:]
+        mean_stress = torch.from_numpy(
+            macro_sequence[list(self.snapshot_indices)]
+        )
         entry["local_stress"] = stress
         entry["mean_stress"] = mean_stress
         if self.use_lstm_hidden_states:
@@ -268,8 +265,6 @@ def main(
     hidden_state_size: int = 64,
     test_fraction: float = 0.3,
     seed: int = 69,
-    integrated_macro: bool = False,
-    macro_sidecar: str | None = None,
     limit_sims: int | None = None,
     resume_from: str | None = None,
     snapshot_indices: tuple[int, ...] = SNAPSHOT_INDICES,
@@ -306,19 +301,6 @@ def main(
             f"{len(val_pairs)} val sims"
         )
 
-    macro_all = None
-    if integrated_macro:
-        if macro_sidecar is None:
-            raise ValueError(
-                "integrated_macro=True requires --macro-sidecar pointing to the "
-                "stored Hill-Mandel macro stresses."
-            )
-        macro_all = np.load(Path(macro_sidecar).expanduser().resolve())
-        print(
-            f"[macro input] stored Hill-Mandel from {macro_sidecar} "
-            f"{macro_all.shape}"
-        )
-
     train_dataset = SnapshotGraphDataset(
         train_pairs,
         positions,
@@ -327,7 +309,6 @@ def main(
         edge_attr,
         snapshot_indices,
         use_lstm_hidden_states=use_lstm_hidden_states,
-        macro_all=macro_all,
     )
     val_dataset = SnapshotGraphDataset(
         val_pairs,
@@ -337,7 +318,6 @@ def main(
         edge_attr,
         snapshot_indices,
         use_lstm_hidden_states=use_lstm_hidden_states,
-        macro_all=macro_all,
     )
     x_mean, x_std, y_mean, y_std = train_dataset.compute_xy_stats()
     train_dataset.set_normalization(x_mean, x_std, y_mean, y_std)
@@ -345,6 +325,9 @@ def main(
 
     input_nodes_features_size = (
         (hidden_state_size if use_lstm_hidden_states else 0) + 3 + 2 + 1
+    )
+    print(
+        "[macro input] volume-averaged (Hill-Mandel) macro_stress from npz"
     )
     print(
         f"use_lstm_hidden_states={use_lstm_hidden_states}, "
