@@ -7,6 +7,7 @@ stress field. Output: one compressed ``sim_XXXXXX.npz`` per sample plus the shar
 
     python scripts/generate_dataset.py --data-dir <DATA_DIR> [--n-samples 10000]
 """
+
 from __future__ import annotations
 
 import os
@@ -34,7 +35,7 @@ from plgnn.fem_sim import (  # noqa: E402
     compute_mechanical_fields_non_linear,
 )
 
-# Simcoon EPICP parameters: [E, nu, eps_y0, sigma_y0, sigma_yinf, c_kinematic].
+# Simcoon EPICP parameters: [E, nu, alpha, sigma_y, k, m] (power-law hardening k*p**m).
 MATERIAL_PROPS = np.array([1e5, 0.3, 1e-5, 300.0, 1000.0, 0.3])
 
 
@@ -103,7 +104,9 @@ def _run_single_simulation(
         return sim_id, False, str(err)
 
     local_stress = local_fields[Field.STRESS].astype(np.float32)
-    macro_strain = np.asarray(mean_fields[Field.TOTAL_STRAIN]).astype(np.float32)
+    macro_strain = np.asarray(mean_fields[Field.TOTAL_STRAIN]).astype(
+        np.float32
+    )
     macro_stress = np.asarray(mean_fields[Field.STRESS]).astype(np.float32)
     np.savez_compressed(
         out_path.as_posix(),
