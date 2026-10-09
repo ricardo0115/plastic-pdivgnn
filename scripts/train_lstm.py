@@ -2,8 +2,13 @@
 
 Reads the per-simulation ``sim_*.npz`` macro sequences produced by
 ``generate_dataset.py`` and trains an :class:`plgnn.lstm.AutoRegressiveStressRNN`
-with a normalized-MSE loss. The best checkpoint (``best.pt``) stores the weights and
-the input/output scalers together.
+with a normalized-MSE loss. Every training batch is resampled in time to a random
+step count drawn log-uniformly in ``[min_steps, max_steps]``, so the network sees
+the loading paths at many increment sizes. Training and validation run the plain
+recurrence (``guarded=False``), so checkpoint selection measures the network
+itself; the ``increment_threshold`` stored with the weights applies at deployment.
+The best checkpoint (``best.pt``) stores the weights, the threshold and the
+input/output scalers together.
 
     python scripts/train_lstm.py --data-dir <DATA_DIR> --output-dir <OUT_DIR>
 """
@@ -20,17 +25,10 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from plgnn.losses import normalized_mse_loss_single
-from plgnn.lstm.models import AutoRegressiveStressRNN
+from plgnn.lstm import AutoRegressiveStressRNN, RandomResampleCollate
+from plgnn.lstm.data import discover_simulations, load_macro_sequences
+from plgnn.lstm.models import DEFAULT_INCREMENT_THRESHOLD
 from plgnn.scaling import ModelStandardScaler
-
-
-def _load_sim(npz_path: Path) -> tuple[np.ndarray, np.ndarray]:
-    with np.load(npz_path) as npz:
-        macro_strain = npz["macro_strain"].astype(np.float32)
-        macro_stress = npz["macro_stress"].astype(np.float32)
-    strain_seq = np.squeeze(macro_strain, axis=-1)
-    stress_seq = np.squeeze(macro_stress, axis=-1)
-    return strain_seq[1:], stress_seq[1:]
 
 
 class MacroPathDataset(Dataset):
@@ -41,7 +39,7 @@ class MacroPathDataset(Dataset):
         strains: list[np.ndarray] = []
         stresses: list[np.ndarray] = []
         for path in tqdm(npz_paths, desc="Loading macro sequences"):
-            eps, sig = _load_sim(path)
+            eps, sig = load_macro_sequences(path)
             strains.append(eps)
             stresses.append(sig)
         self.strains = np.stack(strains, axis=0)
@@ -55,15 +53,6 @@ class MacroPathDataset(Dataset):
             torch.from_numpy(self.strains[idx]),
             torch.from_numpy(self.stresses[idx]),
         )
-
-
-def _discover_sims(data_dir: Path) -> list[Path]:
-    paths = sorted(data_dir.glob("sim_*.npz"))
-    if not paths:
-        raise FileNotFoundError(
-            f"No simulation files sim_*.npz found in {data_dir}"
-        )
-    return paths
 
 
 def _split_indices(
@@ -83,14 +72,6 @@ def _fit_standard_scaler(data: np.ndarray) -> tuple[torch.Tensor, torch.Tensor]:
     return mean, std
 
 
-def _apply_scaler(
-    tensor: torch.Tensor, scaler: ModelStandardScaler
-) -> torch.Tensor:
-    mean = scaler.mean.to(tensor.device, dtype=tensor.dtype)
-    std = scaler.std.to(tensor.device, dtype=tensor.dtype)
-    return (tensor - mean) / std
-
-
 def _run_epoch(
     model: AutoRegressiveStressRNN,
     loader: DataLoader,
@@ -106,9 +87,9 @@ def _run_epoch(
         for strain_batch, stress_batch in loader:
             strain_batch = strain_batch.to(device)
             stress_batch = stress_batch.to(device)
-            x = _apply_scaler(strain_batch, model.input_scaler)
-            y = _apply_scaler(stress_batch, model.output_scaler)
-            pred, _ = model.forward(x)
+            x = model.input_scaler.transform(strain_batch)
+            y = model.output_scaler.transform(stress_batch)
+            pred, _ = model(x, guarded=False)
             loss = normalized_mse_loss_single(
                 y.reshape(-1, y.shape[-1]),
                 pred.reshape(-1, pred.shape[-1]),
@@ -133,6 +114,9 @@ def main(
     test_fraction: float = 0.3,
     seed: int = 69,
     num_workers: int = 0,
+    min_steps: int = 25,
+    max_steps: int = 1001,
+    increment_threshold: float = DEFAULT_INCREMENT_THRESHOLD,
 ) -> None:
     data_path = Path(data_dir).expanduser().resolve()
     if not data_path.is_dir():
@@ -145,7 +129,7 @@ def main(
     np.random.seed(seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    sim_paths = _discover_sims(data_path)
+    sim_paths = discover_simulations(data_path)
     train_idx, val_idx = _split_indices(len(sim_paths), test_fraction, seed)
 
     train_dataset = MacroPathDataset([sim_paths[i] for i in train_idx])
@@ -164,6 +148,7 @@ def main(
         num_layers=num_layers,
         input_scaler=input_scaler,
         output_scaler=output_scaler,
+        increment_threshold=increment_threshold,
     ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -173,6 +158,7 @@ def main(
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
+        collate_fn=RandomResampleCollate(min_steps, max_steps),
     )
     val_loader = DataLoader(
         val_dataset,

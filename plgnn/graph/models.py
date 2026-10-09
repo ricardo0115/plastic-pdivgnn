@@ -8,8 +8,6 @@ which keeps the GNN reusable across elastic, hyperelastic, and plastic cases.
 
 from __future__ import annotations
 
-from typing import Optional
-
 import torch
 import torch_geometric as PyG
 from torch.nn import Linear, Sequential
@@ -93,10 +91,8 @@ class EncodeProcessDecode(BaseModel):
         latent_size: int,
         input_nodes_features_size: int,
         output_nodes_features_size: int,
-        input_scaler: Optional[ModelStandardScaler] = None,
-        output_scaler: Optional[ModelStandardScaler] = None,
-        node_pos_scaler: Optional[ModelStandardScaler] = None,
-        edge_scaler: Optional[ModelStandardScaler] = None,
+        input_scaler: ModelStandardScaler | None = None,
+        output_scaler: ModelStandardScaler | None = None,
     ):
         super().__init__(input_scaler, output_scaler)
         self.message_passing_steps = message_passing_steps
@@ -104,8 +100,6 @@ class EncodeProcessDecode(BaseModel):
         self.latent_size = latent_size
         self.input_nodes_features_size = input_nodes_features_size
         self.output_nodes_features_size = output_nodes_features_size
-        self.node_pos_scaler = node_pos_scaler
-        self.edge_scaler = edge_scaler
         self.node_encoder = Sequential(
             Linear(self.input_nodes_features_size, self.latent_size),
             torch.nn.ReLU(),

@@ -36,15 +36,12 @@ def compute_divergence(
     local_stress_field: torch.Tensor,
     op_div_matrix: torch.Tensor,
     surface_nodes_ids: torch.Tensor,
-    reduce_strategy: str = "square",
 ) -> torch.Tensor:
-    """Scalar divergence penalty for a single 2D graph.
+    """Mean squared divergence of a single 2D stress field.
 
     Stress components are ordered [sigma_xx, sigma_yy, sigma_xy]; boundary nodes
-    are zeroed before reduction.
+    are zeroed before the reduction.
     """
-    if reduce_strategy not in ("abs", "square"):
-        raise AttributeError("reduce_strategy must be 'abs' or 'square'")
     stress_x_xy = local_stress_field[:, [0, 2]].T.reshape(-1)
     stress_xy_y = local_stress_field[:, [2, 1]].T.reshape(-1)
     stress_x_xy_xy_y = torch.stack([stress_x_xy, stress_xy_y], dim=1)  # 2Nx2
@@ -57,12 +54,7 @@ def compute_divergence(
     ).squeeze()
     div_sigma[external_boundary_nodes_mask] = 0
     div_sigma[internal_boundary_nodes_mask] = 0
-    if reduce_strategy == "abs":
-        div_sigma = torch.abs(div_sigma)
-    elif reduce_strategy == "square":
-        div_sigma = torch.square(div_sigma)
-    div_sigma = torch.mean(div_sigma, dim=0)
-    return torch.sum(div_sigma)
+    return torch.sum(torch.mean(torch.square(div_sigma), dim=0))
 
 
 def compute_divergence_batch(

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pyvista as pv
-import torch
 
 PANEL_W: int = 2000 // 3
 PANEL_H: int = 1240
@@ -19,22 +18,6 @@ HGAP: int = 24
 VGAP: int = 2
 
 pv.global_theme.font.family = "times"
-
-
-def von_mises_stress(
-    mean_stress_x: torch.Tensor,
-    mean_stress_y: torch.Tensor,
-    mean_stress_xy: torch.Tensor,
-) -> np.ndarray | float:
-    return np.sqrt(
-        0.5
-        * (
-            (mean_stress_x - mean_stress_y) ** 2
-            + mean_stress_x**2
-            + mean_stress_y**2
-            + 6 * mean_stress_xy**2
-        )
-    )
 
 
 def trim_white_vertical(arr: np.ndarray, threshold: int = 245) -> np.ndarray:

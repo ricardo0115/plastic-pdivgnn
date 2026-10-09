@@ -8,8 +8,8 @@ unchanged while delegating all model logic to the :mod:`plgnn` library:
 - :class:`PlasticGNN` wraps :class:`plgnn.graph.EncodeProcessDecode` and the
   periodic-graph build (macro stress + hidden states -> local stress field).
 
-Equivalent to :class:`plgnn.hybrid.LstmGNN` run in two stages; kept separate
-because the figures sometimes need the macro stress / hidden states on their own.
+The two stages are kept separate because the figures sometimes need the macro
+stress and hidden states on their own.
 """
 
 from __future__ import annotations
