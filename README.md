@@ -62,6 +62,10 @@ path, with the macroscopic stress-strain curves (bottom). Produced by
   high-fidelity fields on coarse meshes.
 - **Physics-informed.** P-DivGNN penalizes the discrete stress divergence, so the
   reconstructed fields are closer to mechanical equilibrium.
+- **Discretization-independent constitutive model.** The LSTM advances its recurrent
+  state by strain increment, so its response does not depend on how finely a loading
+  path is discretized and stays constant while the strain is held. Training resamples
+  every batch in time, so the network sees the paths at many increment sizes.
 - **Reproducible.** Committed weights + on-the-fly finite-element reference: every
   figure regenerates from a single command, no dataset download required.
 
@@ -137,7 +141,7 @@ inference from the committed weights. Run any script with `--help` for all optio
 
 ```
 plgnn/                      self-contained package
-├── graph/ lstm/ hybrid/    neural-network models (GNN, LSTM, coupled LstmGNN)
+├── graph/ lstm/            neural-network models (GNN, LSTM)
 ├── base.py scaling.py losses.py physics.py physics_fem.py    core utilities
 ├── datagen.py fem_sim.py   finite-element meshes and solve (fedoo + simcoon)
 └── models.py figutils.py movie.py train_utils.py    paper-specific
@@ -150,6 +154,7 @@ scripts/
 ├── precompute_hidden_states.py
 ├── figures/                figure-reproduction scripts (from weights/)
 └── viewers/                interactive real-time field viewer (PyQt5; extra: gui)
+tests/                      unit tests (pytest)
 environment.yml             conda environment (Python 3.12, simcoon, fedoo, ...)
 pyproject.toml              dependencies
 ```
@@ -271,8 +276,11 @@ figure, so this is only needed to train from scratch.
 # 1. Generate the finite-element dataset (one sim_*.npz per sample + mesh.vtk)
 python scripts/generate_dataset.py --data-dir <DATA_DIR> --n-samples 10000
 
-# 2. Train the LSTM constitutive model (best checkpoint -> <OUT>/best.pt)
-python scripts/train_lstm.py --data-dir <DATA_DIR> --output-dir runs/lstm
+# 2. Train the LSTM constitutive model (best checkpoint -> <OUT>/best.pt).
+#    Each batch is resampled in time to a random step count in [min-steps, max-steps];
+#    the increment threshold is stored with the weights and applied at inference.
+python scripts/train_lstm.py --data-dir <DATA_DIR> --output-dir runs/lstm \
+  --min-steps 25 --max-steps 1001 --increment-threshold 3.25e-4
 
 # 3. Precompute the LSTM hidden states (GNN node features)
 python scripts/precompute_hidden_states.py \
