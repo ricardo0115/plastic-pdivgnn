@@ -1,4 +1,4 @@
-"""Shared model infrastructure: device selection, summaries, checkpointing.
+"""Shared model infrastructure: the checkpoint format of every model family.
 
 `BaseModel` is the common parent of every trainable model family
 (:mod:`plgnn.graph`, :mod:`plgnn.lstm`). It carries optional input/output
@@ -8,42 +8,20 @@ saved and restored together.
 
 from __future__ import annotations
 
-from abc import ABC
-from typing import Any, Optional
+from typing import Any
 
 import torch
-import torch_geometric as PyG
 
 from plgnn.scaling import ModelStandardScaler
 
 
-def get_device() -> str:
-    """Auto-detect best available device: cuda > mps > cpu."""
-    if torch.cuda.is_available():
-        return "cuda"
-    if torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
-
-
-def print_model(
-    model: torch.nn.Module,
-    data_loader: PyG.loader.DataLoader,
-    device: str,
-) -> str:
-    """Return a torch-geometric summary of ``model`` on one batch."""
-    sample = next(iter(data_loader)).to(device)
-    model = model.to(device)
-    return PyG.nn.summary(model, sample)
-
-
-class BaseModel(torch.nn.Module, ABC):
+class BaseModel(torch.nn.Module):
     """Base model carrying optional scalers and a uniform checkpoint format."""
 
     def __init__(
         self,
-        input_scaler: Optional[ModelStandardScaler] = None,
-        output_scaler: Optional[ModelStandardScaler] = None,
+        input_scaler: ModelStandardScaler | None = None,
+        output_scaler: ModelStandardScaler | None = None,
     ):
         super().__init__()
         self.input_scaler = input_scaler
@@ -52,7 +30,7 @@ class BaseModel(torch.nn.Module, ABC):
     def load_model_checkpoint(
         self,
         filename: str,
-        optimizer: Optional[torch.optim.Optimizer] = None,
+        optimizer: torch.optim.Optimizer | None = None,
     ) -> int:
         checkpoint = torch.load(
             filename, weights_only=False, map_location="cpu"
@@ -68,7 +46,7 @@ class BaseModel(torch.nn.Module, ABC):
     def save_model_checkpoint(
         self,
         filename: str,
-        optimizer: Optional[torch.optim.Optimizer] = None,
+        optimizer: torch.optim.Optimizer | None = None,
         epoch: int = -1,
     ) -> None:
         if self.input_scaler is None or self.output_scaler is None:

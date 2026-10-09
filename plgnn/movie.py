@@ -48,6 +48,7 @@ from plgnn.figutils import (  # noqa: E402
     hstack_panels,
     render_field_panel,
     render_field_row,
+    trim_white_vertical,
 )
 
 plt.rcParams.update({"font.family": "serif", "mathtext.fontset": "cm"})
@@ -71,27 +72,6 @@ def _component_clims(values: np.ndarray) -> list[tuple[float, float]]:
             hi += eps
         clims.append((lo, hi))
     return clims
-
-
-def _trim_white_vertical(
-    arr: np.ndarray, threshold: int = _WHITE_THRESHOLD,
-) -> np.ndarray:
-    """Crop fully-white top/bottom bands, leaving full width untouched."""
-    row_has_ink: np.ndarray = np.any(arr < threshold, axis=2).any(axis=1)
-    if not row_has_ink.any():
-        return arr
-    ys: np.ndarray = np.where(row_has_ink)[0]
-    return arr[int(ys.min()) : int(ys.max()) + 1]
-
-
-def render_field_row_frame(
-    mesh: pv.PolyData,
-    values: np.ndarray,
-    titles: tuple[str, str, str],
-    clims: list[tuple[float, float]],
-) -> np.ndarray:
-    """Render one timestep's 3-component field row to an RGB array."""
-    return render_field_row(mesh, values, titles, clims)
 
 
 def render_curve_frame(
@@ -130,7 +110,7 @@ def render_curve_frame(
     fig.canvas.draw()
     arr: np.ndarray = np.asarray(fig.canvas.buffer_rgba())[..., :3].copy()
     plt.close(fig)
-    return _trim_white_vertical(arr)
+    return trim_white_vertical(arr, _WHITE_THRESHOLD)
 
 
 def _resize_to_width(arr: np.ndarray, width: int) -> np.ndarray:
@@ -212,10 +192,10 @@ def write_comparison_movie(
     try:
         for t in range(n_frames):
             clims: list[tuple[float, float]] = _component_clims(fem_field[t])
-            fem_row: np.ndarray = render_field_row_frame(
+            fem_row: np.ndarray = render_field_row(
                 mesh, fem_field[t], fem_titles, clims,
             )
-            gnn_row: np.ndarray = render_field_row_frame(
+            gnn_row: np.ndarray = render_field_row(
                 mesh, gnn_field[t], gnn_titles, clims,
             )
             curve_row: np.ndarray = render_curve_frame(
@@ -277,7 +257,7 @@ def write_error_field_movie(
     try:
         for t in range(error_field.shape[0]):
             clims: list[tuple[float, float]] = _component_clims(error_field[t])
-            row: np.ndarray = render_field_row_frame(
+            row: np.ndarray = render_field_row(
                 mesh, error_field[t], titles, clims,
             )
             writer.append_data(stack_frames_vertically([row], width=target_width))

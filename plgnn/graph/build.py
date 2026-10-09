@@ -39,14 +39,12 @@ def build_graph(
 
     When ``periodic`` is True (default), wrap-around edges connecting opposite
     boundaries are added (requires a periodic mesh). Set ``periodic=False`` to
-    skip them and build a plain mesh graph. The resulting graph carries
-    ``is_periodic`` so downstream code can tell which kind it received.
+    skip them and build a plain mesh graph.
     """
     graph = mesh_to_graph(mesh)
     graph.edge_attr = _compute_node_distances_as_edge_weights(graph).float()
     if periodic:
         graph = compute_periodic_graph(graph)
-    graph.is_periodic = periodic
     graph.node_labels = torch.Tensor(compute_node_labels(mesh))
     graph.pos = graph.pos[:, :-1].float()
     return graph
@@ -161,7 +159,6 @@ def compute_periodic_graph(graph: PyG.data.Data) -> PyG.data.Data:
         pos=graph.pos,
         edge_attr=edge_attr,
         face=graph.face,
-        org_edge_index=graph.edge_index,
     ).coalesce()
 
 

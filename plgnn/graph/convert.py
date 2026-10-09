@@ -1,7 +1,7 @@
 """Mesh <-> graph conversion and mesh geometry helpers.
 
 Converts pyvista meshes to PyTorch Geometric graphs (triangular and quad
-elements) and back, plus periodicity helpers (bounding box, face extraction,
+elements), plus periodicity helpers (bounding box, face extraction,
 periodicity check) used by :mod:`plgnn.graph.build`.
 
 The mesh geometry helpers are inlined from microgen to avoid importing it
@@ -30,16 +30,6 @@ def _format_faces_from_pyvista(faces: np.ndarray) -> torch.Tensor:
     # unexpected tensor behaviors.
     mesh_faces = np.copy(faces.reshape(-1, n_nodes_per_face + 1)[:, 1:])
     return torch.from_numpy(mesh_faces).t().contiguous()
-
-
-def _format_faces_to_pyvista(faces: np.ndarray) -> np.ndarray:
-    n_nodes_per_face = faces.shape[1]
-    formatted_faces = np.zeros(
-        (faces.shape[0], n_nodes_per_face + 1), dtype=np.uint64
-    )
-    formatted_faces[:, 0] = n_nodes_per_face
-    formatted_faces[:, 1:] = faces
-    return formatted_faces
 
 
 def _quad_face_to_edge(
@@ -77,19 +67,6 @@ def mesh_to_graph(
         face_to_edge = PyG.transforms.FaceToEdge(remove_faces=remove_faces)
         graph = face_to_edge(graph)
     return graph
-
-
-def graph_to_mesh(graph: PyG.data.Data) -> pv.PolyData:
-    """Reconstruct a pyvista surface mesh from a graph carrying ``face``."""
-    if graph.pos.shape[1] == 2:
-        # Add a zero Z column so _format_faces_to_pyvista works.
-        pos = torch.zeros(size=(graph.pos.shape[0], 3))
-        pos[:, :2] = graph.pos
-        graph.pos = pos
-    vertices = graph.pos.detach().cpu().numpy()
-    faces = graph.face.detach().t().cpu().numpy()
-    faces = _format_faces_to_pyvista(faces)
-    return pv.PolyData(vertices, faces)
 
 
 # --------------------------------------------------------------------------- #
