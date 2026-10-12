@@ -7,13 +7,16 @@ LSTM + graph neural network.**
 ![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)
 ![PyG](https://img.shields.io/badge/PyTorch%20Geometric-3C2179)
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+[![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.cma.2026.119466-0a4f63.svg)](https://doi.org/10.1016/j.cma.2026.119466)
 [![arXiv](https://img.shields.io/badge/arXiv-2606.10909-b31b1b.svg)](https://arxiv.org/abs/2606.10909)
 [![Interactive abstract](https://img.shields.io/badge/🌐_Interactive_abstract-online-2ea44f)](https://ricardo0115.github.io/plastic-pdivgnn/)
 
 > Reproducibility code for the paper
 > **Non-linear mechanical field reconstruction coupling recurrent neural networks
-> with physics-informed graph neural networks**
-> ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909), submitted to CMAME).
+> with physics-informed graph neural networks**,
+> *Computer Methods in Applied Mechanics and Engineering* 464 (2027) 119466,
+> open access: [doi:10.1016/j.cma.2026.119466](https://doi.org/10.1016/j.cma.2026.119466)
+> (preprint [arXiv:2606.10909](https://arxiv.org/abs/2606.10909)).
 
 A Long Short-Term Memory (LSTM) network encodes the macroscopic strain–stress
 history of an elasto-plastic representative unit cell into a hidden state; a
@@ -300,22 +303,24 @@ not stored in git. Regenerate it with `scripts/generate_dataset.py`.
 
 ## Citation
 
-A preprint is available on arXiv ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909));
-the paper is under review at CMAME. Please cite:
+The paper is published open access (CC BY 4.0) in *Computer Methods in Applied
+Mechanics and Engineering*: [doi:10.1016/j.cma.2026.119466](https://doi.org/10.1016/j.cma.2026.119466).
+A preprint is also available on arXiv ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909)).
+Please cite the journal version:
 
 ```bibtex
-@article{GuevaraGarban2026LSTMGNN,
-  author        = {Guevara Garban, Manuel Ricardo and Chemisky, Yves and
-                   Pruli{\`e}re, {\'E}tienne and Cl{\'e}ment, Micha{\"e}l and
-                   Abendroth, Martin and Kiefer, Bjoern},
-  title         = {Non-linear mechanical field reconstruction coupling recurrent
-                   neural networks with physics-informed graph neural networks},
-  journal       = {Computer Methods in Applied Mechanics and Engineering},
-  year          = {2026},
-  eprint        = {2606.10909},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.CE},
-  note          = {Submitted; preprint arXiv:2606.10909}
+@article{GuevaraGarban2027LSTMGNN,
+  author  = {Guevara Garban, Manuel Ricardo and Chemisky, Yves and
+             Cl{\'e}ment, Micha{\"e}l and Pruli{\`e}re, {\'E}tienne and
+             Abendroth, Martin and Kiefer, Bjoern},
+  title   = {Non-linear mechanical field reconstruction coupling recurrent
+             neural networks with physics-informed graph neural networks},
+  journal = {Computer Methods in Applied Mechanics and Engineering},
+  volume  = {464},
+  pages   = {119466},
+  year    = {2027},
+  doi     = {10.1016/j.cma.2026.119466},
+  url     = {https://doi.org/10.1016/j.cma.2026.119466}
 }
 ```
 
