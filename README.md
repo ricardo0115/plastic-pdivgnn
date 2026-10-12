@@ -305,8 +305,7 @@ not stored in git. Regenerate it with `scripts/generate_dataset.py`.
 
 The paper is published open access (CC BY 4.0) in *Computer Methods in Applied
 Mechanics and Engineering*: [doi:10.1016/j.cma.2026.119466](https://doi.org/10.1016/j.cma.2026.119466).
-A preprint is also available on arXiv ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909)).
-Please cite the journal version:
+A preprint is also available on arXiv ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909)):
 
 ```bibtex
 @article{GuevaraGarban2027LSTMGNN,
