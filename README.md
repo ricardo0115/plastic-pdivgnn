@@ -15,7 +15,7 @@ LSTM + graph neural network.**
 > **Non-linear mechanical field reconstruction coupling recurrent neural networks
 > with physics-informed graph neural networks**,
 > *Computer Methods in Applied Mechanics and Engineering* 464 (2027) 119466,
-> open access: [doi:10.1016/j.cma.2026.119466](https://doi.org/10.1016/j.cma.2026.119466)
+> [doi:10.1016/j.cma.2026.119466](https://doi.org/10.1016/j.cma.2026.119466)
 > (preprint [arXiv:2606.10909](https://arxiv.org/abs/2606.10909)).
 
 A Long Short-Term Memory (LSTM) network encodes the macroscopic strain–stress
@@ -303,8 +303,8 @@ not stored in git. Regenerate it with `scripts/generate_dataset.py`.
 
 ## Citation
 
-The paper is published open access (CC BY 4.0) in *Computer Methods in Applied
-Mechanics and Engineering*: [doi:10.1016/j.cma.2026.119466](https://doi.org/10.1016/j.cma.2026.119466).
+The paper is published in *Computer Methods in Applied Mechanics and Engineering*:
+[doi:10.1016/j.cma.2026.119466](https://doi.org/10.1016/j.cma.2026.119466).
 A preprint is also available on arXiv ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909)):
 
 ```bibtex
