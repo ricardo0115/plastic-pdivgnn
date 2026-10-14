@@ -16,7 +16,7 @@ LSTM + graph neural network.**
 > with physics-informed graph neural networks**,
 > *Computer Methods in Applied Mechanics and Engineering* 464 (2027) 119466,
 > [doi:10.1016/j.cma.2026.119466](https://doi.org/10.1016/j.cma.2026.119466)
-> (preprint [arXiv:2606.10909](https://arxiv.org/abs/2606.10909)).
+> (also on [arXiv:2606.10909](https://arxiv.org/abs/2606.10909)).
 
 A Long Short-Term Memory (LSTM) network encodes the macroscopic strain–stress
 history of an elasto-plastic representative unit cell into a hidden state; a
@@ -305,7 +305,7 @@ not stored in git. Regenerate it with `scripts/generate_dataset.py`.
 
 The paper is published in *Computer Methods in Applied Mechanics and Engineering*:
 [doi:10.1016/j.cma.2026.119466](https://doi.org/10.1016/j.cma.2026.119466).
-A preprint is also available on arXiv ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909)):
+The paper is also available on arXiv ([arXiv:2606.10909](https://arxiv.org/abs/2606.10909)):
 
 ```bibtex
 @article{GuevaraGarban2027LSTMGNN,
